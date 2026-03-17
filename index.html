@@ -1010,12 +1010,18 @@ function approveUnlock(uid_){
   if(c.dailyUnlock)c.dailyUnlock.status='approved';
   save();toast(`✅ Recreation unlocked for ${c.name}`);render();
 }
-function denyUnlock(uid_){
+function denyUnlock(uid_,denyType){
   const u=(D.pendingUnlocks||[]).find(x=>x.id===uid_);if(!u)return;
-  u.status='denied';
+  const type=denyType||'rest-of-day';
+  u.status='denied';u.denyType=type;
   const c=child(u.childId);
-  if(c.dailyUnlock)c.dailyUnlock.status='denied';
-  save();toast(`❌ Recreation denied for ${c.name}`);render();
+  c.dailyUnlock={date:new Date().toISOString().split('T')[0],status:'denied',requestId:u.id,denyType:type};
+  const msgs={
+    'until-met':`⏳ Not yet — ${c.name} needs to complete requirements first`,
+    'rest-of-day':`🚫 Recreation denied for ${c.name} for the rest of today`,
+    'parent-reset':`🔒 Recreation blocked for ${c.name} until you lift it`
+  };
+  save();toast(msgs[type]||msgs['rest-of-day']);render();
 }
 
 // ═══════════════════════════════════════
@@ -1202,7 +1208,27 @@ function startSessionWithType(cid,sessionType){
     c.pendingMinutes=0;save();toast('🎮 Recreation started!');render();return;
   }
   if(c.dailyUnlock&&c.dailyUnlock.date===today&&c.dailyUnlock.status==='pending'){toast('Still waiting for parent approval ⏳');return;}
-  if(c.dailyUnlock&&c.dailyUnlock.date===today&&c.dailyUnlock.status==='denied'){toast('Recreation denied by parent today 🚫');return;}
+  if(c.dailyUnlock&&c.dailyUnlock.date===today&&c.dailyUnlock.status==='denied'){
+    const dt=c.dailyUnlock.denyType||'rest-of-day';
+    if(dt==='until-met'){
+      // Auto-lift if requirements are now met
+      if(req.met){
+        c.dailyUnlock=null;
+        // fall through to requestUnlock below
+      } else {
+        if(req.schoolMissing){
+          const m=c.schoolMinDay>0?c.schoolMinDay:(D.settings.schoolMinMins||15);
+          toast(`📚 Complete ${m} min of school first — then recreation will unlock automatically`);return;
+        }
+        const names=(req.missing||[]).map(a=>a.emoji+' '+a.name).join(', ');
+        toast(`⭐ Complete requirements first — then recreation unlocks automatically${names?': '+names:''}`);return;
+      }
+    } else if(dt==='parent-reset'){
+      toast('🔒 Recreation is blocked — ask a parent to lift the restriction');return;
+    } else {
+      toast('🚫 Recreation denied for today — try again tomorrow');return;
+    }
+  }
   // Requirements not met — show specific reason before sending request
   if(req.schoolMissing){
     const minRequired=c.schoolMinDay>0?c.schoolMinDay:(D.settings.schoolMinMins||15);
@@ -1842,10 +1868,22 @@ function rChild(){
       <div style="display:flex;gap:10px;align-items:center"><span style="font-size:1.3rem">📬</span>
       <div><div style="font-weight:800">Recreation request sent!</div>
       <div style="font-size:.82rem;color:var(--muted)">Waiting for a parent to approve ⏳</div></div></div></div>`;
-    else if(unlock.status==='denied')unlockBanner=`<div class="card" style="border-color:var(--danger)55;background:rgba(239,68,68,.07)">
-      <div style="display:flex;gap:10px;align-items:center"><span style="font-size:1.3rem">🚫</span>
-      <div><div style="font-weight:800">Recreation denied today</div>
-      <div style="font-size:.82rem;color:var(--muted)">Ask a parent for more info</div></div></div></div>`;
+    else if(unlock.status==='denied'){
+      const dt=unlock.denyType||'rest-of-day';
+      const msgs={
+        'until-met':'Complete your requirements — recreation will unlock automatically ⏳',
+        'rest-of-day':'Recreation is not allowed for the rest of today 🚫',
+        'parent-reset':'Recreation is blocked — ask a parent to lift the restriction 🔒'
+      };
+      unlockBanner=`<div class="card" style="border-color:var(--danger)55;background:rgba(239,68,68,.07)">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font-size:1.3rem">${dt==='until-met'?'⏳':dt==='parent-reset'?'🔒':'🚫'}</span>
+        <div style="flex:1">
+          <div style="font-weight:800">${dt==='until-met'?'Not yet — finish your tasks first':dt==='parent-reset'?'Recreation blocked':'Recreation denied today'}</div>
+          <div style="font-size:.82rem;color:var(--muted)">${msgs[dt]}</div>
+        </div>
+        </div>
+      </div>`;
+    }
     else if(unlock.status==='approved'&&!ts)unlockBanner=`<div class="card" style="border-color:var(--success)55;background:rgba(16,185,129,.07)">
       <div style="font-weight:800;margin-bottom:8px">✅ Recreation approved for today!</div>
       ${c.pendingMinutes>0?`<button class="btn btn-primary btn-full" data-a="start-session" data-cid="${childId}">▶ Start Recreation (${c.pendingMinutes} min banked)</button>`
@@ -2184,9 +2222,13 @@ function rApprovals(){
       </div>
       ${metList||missList?`<div style="background:var(--card2);border-radius:10px;padding:9px 11px;margin-bottom:9px">
         ${metList}${missList}</div>`:''}
-      <div class="approval-actions">
-        <button class="btn btn-success" data-a="approve-unlock" data-uid="${u.id}">✓ Allow</button>
-        <button class="btn btn-danger" data-a="deny-unlock" data-uid="${u.id}">✗ Deny</button>
+      <div class="approval-actions" style="flex-direction:column;gap:6px">
+        <button class="btn btn-success" data-a="approve-unlock" data-uid="${u.id}">✓ Allow Recreation</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <button class="btn btn-ghost" style="font-size:.72rem;padding:6px 4px;border-color:var(--gold);color:var(--gold)" data-a="deny-unlock" data-uid="${u.id}" data-type="until-met" title="Auto-lifts when requirements are completed">⏳ Not yet<br><span style="font-size:.65rem;opacity:.8">Until reqs met</span></button>
+          <button class="btn btn-ghost" style="font-size:.72rem;padding:6px 4px;border-color:var(--danger);color:var(--danger)" data-a="deny-unlock" data-uid="${u.id}" data-type="rest-of-day" title="Blocked for the rest of today">🚫 Not today<br><span style="font-size:.65rem;opacity:.8">Rest of day</span></button>
+          <button class="btn btn-danger" style="font-size:.72rem;padding:6px 4px" data-a="deny-unlock" data-uid="${u.id}" data-type="parent-reset" title="Stays blocked until you manually lift it">🔒 Blocked<br><span style="font-size:.65rem;opacity:.8">Until you lift</span></button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -2421,7 +2463,26 @@ function rChildren(){
           Earned this week: <strong style="color:var(--text)">R${getWeeklyEarned(c.id).toFixed(2)}</strong> of R${c.weeklyBudget||0} budget
         </div>
       </div>
-      <!-- POINTS -->
+      <!-- RECREATION STATUS -->
+      ${(()=>{
+        const today=new Date().toISOString().split('T')[0];
+        const ul=c.dailyUnlock;
+        if(ul&&ul.date===today&&ul.status==='denied'){
+          const dt=ul.denyType||'rest-of-day';
+          const labels={'until-met':'⏳ Denied until requirements met','rest-of-day':'🚫 Denied for today','parent-reset':'🔒 Blocked until lifted'};
+          return`<div class="divider"></div>
+            <div style="padding:9px 0">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <div>
+                  <div style="font-size:.78rem;font-weight:700;color:var(--danger)">${labels[dt]||labels['rest-of-day']}</div>
+                  <div style="font-size:.7rem;color:var(--muted)">Recreation restriction active for ${c.name}</div>
+                </div>
+                <button class="btn btn-success" style="padding:6px 12px;font-size:.76rem;white-space:nowrap" data-a="lift-restriction" data-cid="${c.id}">✓ Lift Restriction</button>
+              </div>
+            </div>`;
+        }
+        return '';
+      })()}
       <div class="divider"></div>
       <div style="padding:9px 0">
         <label class="form-label">Manual Points</label>
@@ -3850,7 +3911,15 @@ document.addEventListener('click',e=>{
   }
   // Unlock
   else if(a==='approve-unlock'){approveUnlock(el.dataset.uid);}
-  else if(a==='deny-unlock'){denyUnlock(el.dataset.uid);}
+  else if(a==='deny-unlock'){denyUnlock(el.dataset.uid,el.dataset.type||'rest-of-day');}
+  else if(a==='deny-unlock-kid'){
+    const cid=el.dataset.cid;const c=child(cid);
+    const today=new Date().toISOString().split('T')[0];
+    const ul=(D.pendingUnlocks||[]).find(u=>u.childId===cid&&u.status==='pending');
+    if(ul)ul.status='denied';
+    c.dailyUnlock={date:today,status:'denied',requestId:null,denyType:'rest-of-day'};
+    save();toast(`🚫 Recreation denied for ${c.name}`);render();
+  }
   else if(a==='override-unlock'){
     // Parent directly approves/overrides from Kids tab - no pending request needed
     const cid=el.dataset.cid;const c=child(cid);
@@ -3858,14 +3927,12 @@ document.addEventListener('click',e=>{
     c.dailyUnlock={date:today,status:'approved',requestId:null};
     save();toast(`✅ Recreation unlocked for ${c.name}`);render();
   }
-  else if(a==='deny-unlock-kid'){
-    const cid=el.dataset.cid;const c=child(cid);
-    const today=new Date().toISOString().split('T')[0];
-    // Also mark the pending unlock request as denied
-    const ul=(D.pendingUnlocks||[]).find(u=>u.childId===cid&&u.status==='pending');
-    if(ul)ul.status='denied';
-    c.dailyUnlock={date:today,status:'denied',requestId:null};
-    save();toast(`Recreation denied for ${c.name}`);render();
+  else if(a==='lift-restriction'){
+    const c=child(el.dataset.cid);if(!c)return;
+    c.dailyUnlock=null;
+    // Also clear any pending denied unlock records
+    if(D.pendingUnlocks)D.pendingUnlocks=D.pendingUnlocks.filter(u=>!(u.childId===c.id&&u.status==='denied'));
+    save();toast(`✅ Recreation restriction lifted for ${c.name}`);render();
   }
   // Stewardship
   else if(a==='suggest-stewardship'){
