@@ -1312,11 +1312,11 @@ function logSchoolSession(cid,durationMins,subjects){
   const totalPts=intervals*pts;
   D.log.unshift({id:uid(),childId:cid,type:'session-school',
     actName:`🎓 School session (${durationMins} min) · ${subjectStr}`,
-    emoji:'🎓',points:totalPts>0?totalPts:0,durationMins,subjects,status:totalPts>0?'pending':'approved',
+    emoji:'🎓',points:totalPts>0?totalPts:0,durationMins,subjects,status:'pending',
     ts:new Date().toISOString()});
   save();
   if(totalPts>0)toast(`🎓 ${durationMins} min logged! +${totalPts} pts sent to parent for approval ✅`);
-  else toast(`🎓 ${durationMins} min logged!`);
+  else toast(`🎓 ${durationMins} min logged — sent to parent for approval ✅`);
   render();
 }
 function triggerPostRec(cid,durationMins){
@@ -1527,15 +1527,16 @@ function getWeeklyPocketMoneySuggestion(cid){
 function getWeeklyEarned(cid){
   const ws=getWeekStart();
   return D.log.filter(l=>l.childId===cid&&
-    (l.type==='pocket-money'||l.type==='bonus-to-cash')&&
+    (l.type==='pocket-money'||l.type==='bonus-to-cash'||l.type==='screen-free-exchange')&&
     l.status==='approved'&&new Date(l.ts)>=ws)
     .reduce((s,l)=>s+(l.amount||0),0);
 }
 function getWeeklyRandEarned(cid){return getWeeklyEarned(cid);}
 function getTotalEarned(cid){
-  // Derived figure: what's in the wallet + what's already been paid out = total ever earned
   const c=child(cid);
-  return Math.max(0,(c.walletBalance||0))+getTotalPaidOut(cid);
+  const exchanges=D.log.filter(l=>l.childId===cid&&l.type==='screen-free-exchange')
+    .reduce((s,l)=>s+(l.amount||0),0);
+  return Math.max(0,(c.walletBalance||0))+getTotalPaidOut(cid)+exchanges;
 }
 function getTotalPaidOut(cid){
   return D.log.filter(l=>l.childId===cid&&l.type==='physical-payout')
@@ -1789,9 +1790,20 @@ function approve(lid){
 function reject(lid){
   const e=D.log.find(l=>l.id===lid);if(!e)return;
   e.status='rejected';
+  // If rejecting a school session, deduct from daily accumulator
+  if(e.type==='session-school'&&e.durationMins){
+    const c=child(e.childId);
+    const today=new Date().toISOString().split('T')[0];
+    if(c&&c.schoolDailyAccumDate===today){
+      c.schoolDailyAccum=Math.max(0,(c.schoolDailyAccum||0)-e.durationMins);
+    }
+    toast(`🎓 School session rejected — ${e.durationMins} min removed`);
+  } else {
+    toast('Activity rejected');
+  }
   const el=document.querySelector(`[data-lid="${lid}"]`);
   if(el){const item=el.closest('.approval-item');if(item)item.remove();}
-  save();toast('Activity rejected');render();
+  save();render();
 }
 function adjust(cid,delta,type){
   const c=child(cid);
@@ -2580,9 +2592,14 @@ function rBuy(){
   ${(()=>{
     // Screen-free exchange: find cheapest 60-min block, round cost up to nearest 10
     const blocks60=D.timeBlocks.filter(b=>b.minutes>=60).sort((a,b)=>a.points-b.points);
-    const refBlock=blocks60[0]||D.timeBlocks.slice().sort((a,b)=>a.points-b.points)[0];
-    if(!refBlock)return'';
-    const rawCost=refBlock.points;
+    // If no 60-min block, calculate 60-min cost from cheapest block per-minute rate
+    let rawCost;
+    if(blocks60.length){
+      rawCost=blocks60[0].points;
+    } else {
+      const cheapest=D.timeBlocks.slice().sort((a,b)=>a.points/a.minutes-b.points/b.minutes)[0];
+      rawCost=cheapest?Math.ceil((cheapest.points/cheapest.minutes)*60):20;
+    }
     const exchangeCost=Math.ceil(rawCost/10)*10; // e.g. 18pts → 20pts
     const bonusPtsValue=exchangeCost;             // same pts, different currency
     const randValue=(exchangeCost/(c.pointsPerRand||10)).toFixed(2); // e.g. 20pts ÷ 10 = R2.00
@@ -2759,15 +2776,19 @@ function rApprovals(){
   const aHtml=activities.map(p=>{
     const c=child(p.childId);
     const bonus=isBonus(p);
-    return`<div class="approval-item anim-pop" style="${bonus?'border-color:rgba(245,158,11,.35)':''}">
+    const isSchool=p.type==='session-school';
+    return`<div class="approval-item anim-pop" style="${isSchool?'border-color:rgba(139,92,246,.4);background:rgba(139,92,246,.04)':bonus?'border-color:rgba(245,158,11,.35)':''}">
       <div class="row"><span style="font-size:1.35rem">${p.emoji}</span>
         <div style="flex:1;min-width:0">
           <div style="font-weight:800;font-size:.9rem">${p.actName}</div>
           <div style="font-size:.75rem;color:var(--muted)">${c?.name} · ${fmtTime(p.ts)} ·
-            ${bonus
-              ?`<strong style="color:var(--gold)">+${p.points} 🌟 bonus pts → goals only</strong>`
-              :`<strong style="color:var(--gold)">+${p.points} pts</strong>`}
+            ${isSchool
+              ?`<strong style="color:#8B5CF6">${p.durationMins} min · ${p.points>0?'+'+p.points+' pts':'no pts (too short)'}</strong>`
+              :bonus
+                ?`<strong style="color:var(--gold)">+${p.points} 🌟 bonus pts → goals only</strong>`
+                :`<strong style="color:var(--gold)">+${p.points} pts</strong>`}
           </div>
+          ${isSchool?`<div style="font-size:.74rem;color:var(--muted);margin-top:3px">⚠️ Verify school work was actually completed before approving</div>`:''}
           ${p.note?`<div style="font-size:.75rem;color:var(--muted);margin-top:2px">📝 "${p.note}"</div>`:''}
         </div>
       </div>
@@ -3471,7 +3492,7 @@ function rWallet(){
   const pendingRequest=D.log.find(l=>l.childId===childId&&l.type==='payout-request'&&l.status==='pending');
   // Transaction history
   const txs=D.log.filter(l=>l.childId===childId&&
-    ['pocket-money','physical-payout','bonus-to-cash','payout-request','goal-money','goal-parent-match'].includes(l.type)
+    ['pocket-money','physical-payout','bonus-to-cash','payout-request','goal-money','goal-parent-match','screen-free-exchange'].includes(l.type)
   ).slice(0,30);
   return`<div class="header">
     <button class="back-btn" data-a="go-back">←</button>
@@ -3558,6 +3579,19 @@ function rWallet(){
       <button class="btn btn-ghost btn-full" style="font-size:.82rem" data-a="open-goal-transfer" data-gid="${sp.id}">🔄 Transfer to a Goal</button>
     </div>`;
   })()}
+  <!-- SCREEN-FREE EXCHANGES -->
+  ${(()=>{
+    const exchanges=D.log.filter(l=>l.childId===childId&&l.type==='screen-free-exchange').slice(0,5);
+    if(!exchanges.length)return'';
+    return'<div class="sec-title">🌿 Screen-free Exchanges</div>'+
+      '<div class="card" style="padding:8px 12px">'+
+      exchanges.map(e=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)22">
+        <span style="font-size:1.3rem">🌿</span>
+        <div style="flex:1;font-size:.8rem"><div style="font-weight:700">${e.actName}</div>
+        <div style="color:var(--muted);font-size:.72rem">${fmtTime(e.ts)}</div></div>
+        <div style="text-align:right;font-size:.8rem;font-weight:800;color:var(--success)">+R${(e.amount||0).toFixed(2)}</div>
+      </div>`).join('')+'</div>';
+  })()}
   <!-- TRANSACTION HISTORY -->
   ${txs.length?`<div class="sec-title">📋 Transaction History</div>
   <div>${txs.map(t=>{
@@ -3567,7 +3601,8 @@ function rWallet(){
     const isGoalMoney=t.type==='goal-money';
     const isBonus=t.type==='bonus-to-cash';
     const isRequest=t.type==='payout-request';
-    let amtColor=isPayout||isGoalMoney?'var(--danger)':isPending?'var(--gold)':'var(--success)';
+    const isExchange=t.type==='screen-free-exchange';
+    let amtColor=isPayout||isGoalMoney?'var(--danger)':isExchange?'var(--success)':isPending?'var(--gold)':'var(--success)';
     let sign=isPayout||isGoalMoney?'-':'+';
     return`<div class="log-item">
       <div class="log-icon" style="background:${isPayout?'rgba(16,185,129,.15)':isBonus?'rgba(245,158,11,.15)':isPending?'rgba(245,158,11,.1)':'rgba(96,165,250,.12)'}">${t.emoji}</div>
@@ -3578,7 +3613,7 @@ function rWallet(){
       ${t.amount!=null?`<div style="font-weight:900;text-align:right">
         <div style="color:${amtColor}">${sign}R${(t.amount||0).toFixed(2)}</div>
         <div style="font-size:.65rem;color:${isPending?'var(--gold)':'var(--muted)'}">
-          ${isPayout?'paid':isPending?'⏳ pending':isGoalMoney?'to goal':isGoalMatch?'matched':isBonus?'bonus':'earned'}
+          ${isPayout?'paid':isPending?'⏳ pending':isGoalMoney?'to goal':isGoalMatch?'matched':isBonus?'bonus':isExchange?'🌿 exchange':'earned'}
         </div>
       </div>`:''}
     </div>`;

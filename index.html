@@ -1527,15 +1527,16 @@ function getWeeklyPocketMoneySuggestion(cid){
 function getWeeklyEarned(cid){
   const ws=getWeekStart();
   return D.log.filter(l=>l.childId===cid&&
-    (l.type==='pocket-money'||l.type==='bonus-to-cash')&&
+    (l.type==='pocket-money'||l.type==='bonus-to-cash'||l.type==='screen-free-exchange')&&
     l.status==='approved'&&new Date(l.ts)>=ws)
     .reduce((s,l)=>s+(l.amount||0),0);
 }
 function getWeeklyRandEarned(cid){return getWeeklyEarned(cid);}
 function getTotalEarned(cid){
-  // Derived figure: what's in the wallet + what's already been paid out = total ever earned
   const c=child(cid);
-  return Math.max(0,(c.walletBalance||0))+getTotalPaidOut(cid);
+  const exchanges=D.log.filter(l=>l.childId===cid&&l.type==='screen-free-exchange')
+    .reduce((s,l)=>s+(l.amount||0),0);
+  return Math.max(0,(c.walletBalance||0))+getTotalPaidOut(cid)+exchanges;
 }
 function getTotalPaidOut(cid){
   return D.log.filter(l=>l.childId===cid&&l.type==='physical-payout')
@@ -2591,9 +2592,14 @@ function rBuy(){
   ${(()=>{
     // Screen-free exchange: find cheapest 60-min block, round cost up to nearest 10
     const blocks60=D.timeBlocks.filter(b=>b.minutes>=60).sort((a,b)=>a.points-b.points);
-    const refBlock=blocks60[0]||D.timeBlocks.slice().sort((a,b)=>a.points-b.points)[0];
-    if(!refBlock)return'';
-    const rawCost=refBlock.points;
+    // If no 60-min block, calculate 60-min cost from cheapest block per-minute rate
+    let rawCost;
+    if(blocks60.length){
+      rawCost=blocks60[0].points;
+    } else {
+      const cheapest=D.timeBlocks.slice().sort((a,b)=>a.points/a.minutes-b.points/b.minutes)[0];
+      rawCost=cheapest?Math.ceil((cheapest.points/cheapest.minutes)*60):20;
+    }
     const exchangeCost=Math.ceil(rawCost/10)*10; // e.g. 18pts → 20pts
     const bonusPtsValue=exchangeCost;             // same pts, different currency
     const randValue=(exchangeCost/(c.pointsPerRand||10)).toFixed(2); // e.g. 20pts ÷ 10 = R2.00
@@ -3572,6 +3578,19 @@ function rWallet(){
       </div>
       <button class="btn btn-ghost btn-full" style="font-size:.82rem" data-a="open-goal-transfer" data-gid="${sp.id}">🔄 Transfer to a Goal</button>
     </div>`;
+  })()}
+  <!-- SCREEN-FREE EXCHANGES -->
+  ${(()=>{
+    const exchanges=D.log.filter(l=>l.childId===childId&&l.type==='screen-free-exchange').slice(0,5);
+    if(!exchanges.length)return'';
+    return'<div class="sec-title">🌿 Screen-free Exchanges</div>'+
+      '<div class="card" style="padding:8px 12px">'+
+      exchanges.map(e=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)22">
+        <span style="font-size:1.3rem">🌿</span>
+        <div style="flex:1;font-size:.8rem"><div style="font-weight:700">${e.actName}</div>
+        <div style="color:var(--muted);font-size:.72rem">${fmtTime(e.ts)}</div></div>
+        <div style="text-align:right;font-size:.8rem;font-weight:800;color:var(--success)">+R${(e.amount||0).toFixed(2)}</div>
+      </div>`).join('')+'</div>';
   })()}
   <!-- TRANSACTION HISTORY -->
   ${txs.length?`<div class="sec-title">📋 Transaction History</div>
