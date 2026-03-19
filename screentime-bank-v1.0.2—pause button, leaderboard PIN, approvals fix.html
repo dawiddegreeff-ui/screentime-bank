@@ -1035,20 +1035,19 @@ function checkRequirements(cid){
     (doneAids.has(aid)?completed:missing).push(act);
   });
   // Check school session requirement
-  let schoolDone=false,schoolMissing=false;
+  let schoolDone=false,schoolMissing=false,schoolPendingMins=0;
   if(c.requireSchoolSession){
     const minRequired=c.schoolMinDay>0?c.schoolMinDay:(D.settings.schoolMinMins||15);
-    // Count logged sessions + any accumulated-but-not-yet-logged time from stopped sessions today
-    const todaySchool=D.log.filter(l=>l.childId===cid&&l.type==='session-school'&&new Date(l.ts).toDateString()===today&&(l.durationMins||0)>=1);
-    const loggedToday=todaySchool.reduce((s,l)=>s+(l.durationMins||0),0);
-    // Also count schoolDailyAccum if it's from today (covers sessions logged but pending post-school dialog)
-    const accumToday=c.schoolDailyAccumDate===today?(c.schoolDailyAccum||0):0;
-    const totalToday=Math.max(loggedToday, accumToday);
-    schoolDone=totalToday>=minRequired;
+    const todaySchool=D.log.filter(l=>l.childId===cid&&l.type==='session-school'&&new Date(l.ts).toDateString()===today);
+    // Only approved sessions count toward schoolDone
+    const approvedMins=todaySchool.filter(l=>l.status==='approved').reduce((s,l)=>s+(l.durationMins||0),0);
+    // Pending sessions shown as 'in progress' but don't unlock recreation
+    schoolPendingMins=todaySchool.filter(l=>l.status==='pending').reduce((s,l)=>s+(l.durationMins||0),0);
+    schoolDone=approvedMins>=minRequired;
     if(!schoolDone)schoolMissing=true;
   }
   const allMet=missing.length===0&&!schoolMissing;
-  return{met:allMet,completed,missing,schoolDone,schoolMissing};
+  return{met:allMet,completed,missing,schoolDone,schoolMissing,schoolPendingMins};
 }
 // ═══════════════════════════════════════
 // DAILY BALANCE
@@ -2130,8 +2129,7 @@ function rChild(){
     const pendingToday=D.log.filter(l=>l.childId===childId&&l.status==='pending'
       &&l.type==='earn'&&new Date(l.ts).toDateString()===todayStr);
     const pendingAids=new Set(pendingToday.map(l=>l.aid));
-    const schoolPending=D.log.some(l=>l.childId===childId&&l.status==='pending'
-      &&l.type==='session-school'&&new Date(l.ts).toDateString()===todayStr);
+    const schoolPending=req.schoolPendingMins>0;
     reqBanner=`<div class="card" style="border-color:${allDone?'var(--success)44':'var(--gold)44'};background:${allDone?'rgba(16,185,129,.06)':'rgba(245,158,11,.06)'}">
       <div style="font-weight:800;font-size:.9rem;margin-bottom:8px">${allDone?'✅ Daily requirements met!':'📋 Requirements before Recreation'}
         ${c.recStart||c.recEnd?`<span style="font-size:.72rem;color:var(--muted);font-weight:600;margin-left:6px">🕐 ${c.recStart||'any'} – ${c.recEnd||'∞'}</span>`:''}
@@ -2140,7 +2138,7 @@ function rChild(){
         <div class="req-check ${req.schoolDone?'done':schoolPending?'pending':'todo'}">${req.schoolDone?'✓':schoolPending?'…':'○'}</div>
         <div style="flex:1;font-size:.85rem;font-weight:700;color:${req.schoolDone?'var(--success)':schoolPending?'var(--text)':'var(--gold)'}">
           🔓 School session (min ${c.schoolMinDay>0?c.schoolMinDay:(D.settings.schoolMinMins||15)} min)
-          <span style="color:${req.schoolDone?'var(--success)':schoolPending?'var(--gold)':'var(--gold)'}">${req.schoolDone?'✅ Done':schoolPending?'⏳ Logged — awaiting approval':'⭐ Required'}</span>
+          <span style="color:${req.schoolDone?'var(--success)':schoolPending?'var(--gold)':'var(--gold)'}">${req.schoolDone?'✅ Done':schoolPending?'⏳ '+req.schoolPendingMins+' min logged — awaiting parent approval':'⭐ Required'}</span>
         </div>
       </div>`:''}
       ${c.requirements.map(aid=>{
@@ -3158,7 +3156,7 @@ function rChildren(){
       <div class="divider"></div>
       <div style="padding:9px 0">
         <label class="form-label">🏆 Daily Balance Requirements</label>
-        <div style="font-size:.75rem;color:var(--muted);margin-bottom:9px">Set a minimum number of activities per category each day. When all are met, <strong style="color:var(--text)">${c.dailyBalanceBonusPts||5} pts</strong> are queued for your approval.</div>
+        <div style="font-size:.75rem;color:var(--muted);margin-bottom:9px">Set a minimum number of activities per category each day. When all are met, <strong style="color:var(--text)">${c.dailyBalanceBonusPts||5} pts</strong> are queued for your approval. Activities must be <strong style="color:var(--text)">approved</strong> before they count.</div>
         ${D.categories.filter(ct=>ct.id!=='cat-general'&&ct.id!=='cat-bonus').map(ct=>{
           const current=(c.dailyBalance||{})[ct.id]||0;
           const bal=checkDailyBalance(c.id);
@@ -4576,6 +4574,9 @@ function rSettings(){
       <div style="font-size:.72rem;font-weight:800;color:var(--success);margin-bottom:6px">🌿 WELLNESS TESTING — Clear today's wellness logs</div>
       <div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">Clears today's wellness entries only — lets you re-test welcome card and popups without wiping points or history.</div>
       <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn btn-ghost btn-full" style="border:1px solid rgba(167,139,250,.3);font-size:.82rem;margin-bottom:4px" data-a="reset-leaderboard-bonus">
+          👑 Reset Leaderboard Bonus (all children)
+        </button>
         ${D.children.map(c=>`<button class="btn btn-ghost btn-full" style="border:1px solid rgba(96,165,250,.3);font-size:.82rem" data-a="reset-stewardship-bank" data-cid="${c.id}">
           📅 Clear Stewardship Bank — ${c.emoji} ${c.name}
         </button>`).join('')}
@@ -5552,6 +5553,10 @@ document.addEventListener('click',e=>{
   }
   else if(a==='pick-school-direct'){
     startSessionWithType(el.dataset.cid,'school');
+  }
+  else if(a==='reset-leaderboard-bonus'){
+    D.children.forEach(c=>{c.weeklyWinnerBonusDate='';});
+    save();toast('👑 Leaderboard bonus reset — button is active again for all children');render();
   }
   else if(a==='reset-stewardship-bank'){
     const cid=el.dataset.cid;
