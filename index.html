@@ -3158,7 +3158,7 @@ function rChildren(){
       <div class="divider"></div>
       <div style="padding:9px 0">
         <label class="form-label">🏆 Daily Balance Requirements</label>
-        <div style="font-size:.75rem;color:var(--muted);margin-bottom:9px">Set a minimum number of activities per category each day. When all are met, <strong style="color:var(--text)">${c.dailyBalanceBonusPts||5} pts</strong> are queued for your approval.</div>
+        <div style="font-size:.75rem;color:var(--muted);margin-bottom:9px">Set a minimum number of activities per category each day. When all are met, <strong style="color:var(--text)">${c.dailyBalanceBonusPts||5} pts</strong> are queued for your approval. Activities must be <strong style="color:var(--text)">approved</strong> before they count.</div>
         ${D.categories.filter(ct=>ct.id!=='cat-general'&&ct.id!=='cat-bonus').map(ct=>{
           const current=(c.dailyBalance||{})[ct.id]||0;
           const bal=checkDailyBalance(c.id);
@@ -4576,6 +4576,9 @@ function rSettings(){
       <div style="font-size:.72rem;font-weight:800;color:var(--success);margin-bottom:6px">🌿 WELLNESS TESTING — Clear today's wellness logs</div>
       <div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">Clears today's wellness entries only — lets you re-test welcome card and popups without wiping points or history.</div>
       <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn btn-ghost btn-full" style="border:1px solid rgba(167,139,250,.3);font-size:.82rem;margin-bottom:4px" data-a="reset-leaderboard-bonus">
+          👑 Reset Leaderboard Bonus (all children)
+        </button>
         ${D.children.map(c=>`<button class="btn btn-ghost btn-full" style="border:1px solid rgba(96,165,250,.3);font-size:.82rem" data-a="reset-stewardship-bank" data-cid="${c.id}">
           📅 Clear Stewardship Bank — ${c.emoji} ${c.name}
         </button>`).join('')}
@@ -5552,6 +5555,10 @@ document.addEventListener('click',e=>{
   }
   else if(a==='pick-school-direct'){
     startSessionWithType(el.dataset.cid,'school');
+  }
+  else if(a==='reset-leaderboard-bonus'){
+    D.children.forEach(c=>{c.weeklyWinnerBonusDate='';});
+    save();toast('👑 Leaderboard bonus reset — button is active again for all children');render();
   }
   else if(a==='reset-stewardship-bank'){
     const cid=el.dataset.cid;
