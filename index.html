@@ -415,7 +415,6 @@ async function loadFromFirestore(uid){
     const localData=loadLocal();
     if(snap.exists()){
       const remoteData=migrateData(snap.data());
-      // Merge if local has offline changes
       const localTime=localData?.localSavedAt;
       const remoteTime=remoteData?.localSavedAt;
       const localIsNewer=localTime&&remoteTime&&localTime>remoteTime;
@@ -428,14 +427,13 @@ async function loadFromFirestore(uid){
         D=remoteData;
       }
     } else {
-      // First time — use local or default, then write to Firestore
       D=migrateData(localData||clone(DEFAULT_DATA));
       await writeToFirestore();
       toast('✅ New family account created!');
     }
     syncStatus='saved';saveLocal();
     checkDailyReset();view='home';render();
-    // Start real-time listener
+    // Start real-time listener AFTER initial load
     startRealtimeListener(uid);
   }catch(e){
     console.error('Firestore load error:',e);
@@ -469,23 +467,23 @@ async function startRealtimeListener(uid){
   try{
     const {doc,onSnapshot}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const docRef=doc(fbDb,'families',uid);
-    fbUnsubscribe=onSnapshot(docRef,(snap)=>{
+    fbUnsubscribe=onSnapshot(docRef,{includeMetadataChanges:false},(snap)=>{
       if(!snap.exists())return;
+      if(snap.metadata.hasPendingWrites)return; // skip our own writes
       const remote=migrateData(snap.data());
-      // Always apply remote — onSnapshot only fires when Firestore actually changed
-      // Merge to preserve any in-flight local changes not yet written
       const remoteTime=remote?.localSavedAt;
       const localTime=D?.localSavedAt;
-      if(remoteTime===localTime)return; // same save — skip to avoid render loop
+      if(remoteTime===localTime)return; // same save — skip
       D=mergeData(remote,D);
       saveLocal();
       render();
       syncStatus='saved';renderSyncBar();
-      // Show subtle flash to confirm live update received
+      // Green flash to confirm live update received
       const bar=document.getElementById('sync-bar');
       if(bar){bar.style.background='rgba(16,185,129,.25)';setTimeout(()=>{bar.style.background='';},800);}
     },(e)=>{console.warn('Snapshot error:',e);});
-  }catch(e){console.warn('Listener error:',e);}
+    console.log('🔥 Real-time listener active for',uid);
+  }catch(e){console.warn('Listener setup error:',e);}
 }
 
 function startPolling(){
@@ -7298,30 +7296,31 @@ document.addEventListener('change',e=>{
 render();
 window.addEventListener('load',async()=>{
   try{
-    // Load Firebase SDK modules
     const {initializeApp}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    const {getAuth,onAuthStateChanged,GoogleAuthProvider}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-    const {getFirestore,enableIndexedDbPersistence}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const {getAuth,onAuthStateChanged}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+    const {getFirestore,initializeFirestore,persistentLocalCache,persistentMultipleTabManager}=
+      await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
-    // Init Firebase
     fbApp=initializeApp(FIREBASE_CONFIG);
     fbAuth=getAuth(fbApp);
-    fbDb=getFirestore(fbApp);
 
-    // Enable offline persistence (IndexedDB)
-    try{await enableIndexedDbPersistence(fbDb);}catch(e){
-      if(e.code==='failed-precondition')console.warn('Persistence failed — multiple tabs open');
-      else if(e.code==='unimplemented')console.warn('Persistence not supported');
+    // Use persistent cache (v10 way — replaces deprecated enableIndexedDbPersistence)
+    try{
+      fbDb=initializeFirestore(fbApp,{
+        localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})
+      });
+    }catch(e){
+      // Fall back to basic Firestore if persistence fails
+      fbDb=getFirestore(fbApp);
     }
 
-    // Watch auth state — fires on sign-in, sign-out, and page load if already signed in
+    // Watch auth state
     onAuthStateChanged(fbAuth,async(user)=>{
       if(user){
         userEmail=user.email||'';
         syncStatus='syncing';
         await loadFromFirestore(user.uid);
       } else {
-        // Not signed in — load from local storage and run offline
         if(fbUnsubscribe){fbUnsubscribe();fbUnsubscribe=null;}
         userEmail='';syncStatus='offline';
         maybeConnect();
@@ -7330,12 +7329,10 @@ window.addEventListener('load',async()=>{
     });
   }catch(e){
     console.error('Firebase init failed:',e);
-    // Fall back to local-only mode
     D=migrateData(loadLocal()||clone(DEFAULT_DATA));
     view='home';syncStatus='offline';checkDailyReset();render();startTick();
     toast('Running offline — Firebase unavailable');
   }
-  // Safety timeout — if Firebase takes too long, run offline
   setTimeout(()=>{
     if(view==='loading'){
       D=migrateData(loadLocal()||clone(DEFAULT_DATA));
