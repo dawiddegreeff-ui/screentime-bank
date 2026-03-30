@@ -472,15 +472,18 @@ async function startRealtimeListener(uid){
     fbUnsubscribe=onSnapshot(docRef,(snap)=>{
       if(!snap.exists())return;
       const remote=migrateData(snap.data());
-      // Only apply if remote is newer than what we have
+      // Always apply remote — onSnapshot only fires when Firestore actually changed
+      // Merge to preserve any in-flight local changes not yet written
       const remoteTime=remote?.localSavedAt;
       const localTime=D?.localSavedAt;
-      if(remoteTime&&localTime&&remoteTime>localTime){
-        D=mergeData(remote,D);
-        saveLocal();
-        render();
-        syncStatus='saved';renderSyncBar();
-      }
+      if(remoteTime===localTime)return; // same save — skip to avoid render loop
+      D=mergeData(remote,D);
+      saveLocal();
+      render();
+      syncStatus='saved';renderSyncBar();
+      // Show subtle flash to confirm live update received
+      const bar=document.getElementById('sync-bar');
+      if(bar){bar.style.background='rgba(16,185,129,.25)';setTimeout(()=>{bar.style.background='';},800);}
     },(e)=>{console.warn('Snapshot error:',e);});
   }catch(e){console.warn('Listener error:',e);}
 }
@@ -490,11 +493,16 @@ function startPolling(){
 }
 
 
-function save(){
+function save(immediate){
   if(D)D.localSavedAt=new Date().toISOString();
   saveLocal();
-  clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>writeToFirestore(),900);
+  if(immediate){
+    clearTimeout(saveTimer);
+    writeToFirestore();
+  } else {
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(()=>writeToFirestore(),900);
+  }
 }
 
 // ═══════════════════════════════════════
@@ -1992,7 +2000,7 @@ function approve(lid){
   if(el){const item=el.closest('.approval-item');if(item)item.remove();}
   if(isBonus(e)){
     c.bonusPts=(c.bonusPts||0)+e.points;
-    save();toast(`✅ +${e.points} bonus pts for ${c.name}`);
+    save(true);toast(`✅ +${e.points} bonus pts for ${c.name}`);
   }else{
     const reg=e.points||0;
     const bon=e.bonusPoints||0;
@@ -2001,7 +2009,7 @@ function approve(lid){
     let msg='✅ Approved for '+c.name;
     if(reg>0)msg+=' +'+reg+'pts';
     if(bon>0)msg+=' +'+bon+'🌟';
-    save();toast(msg);
+    save(true);toast(msg);
     tryAwardDailyBalanceBonus(e.childId);
   }
   render();
@@ -2022,7 +2030,7 @@ function reject(lid){
   }
   const el=document.querySelector(`[data-lid="${lid}"]`);
   if(el){const item=el.closest('.approval-item');if(item)item.remove();}
-  save();render();
+  save(true);render();
 }
 function adjust(cid,delta,type){
   const c=child(cid);
