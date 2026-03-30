@@ -2070,10 +2070,10 @@ function renderSyncBar(){
 function buildSyncBar(){
   const conn=!!(fbAuth&&fbAuth.currentUser);
   const live=conn&&fbUnsubscribe;
-  const map={saved:{cls:'sync-saved',icon:'☁️',lbl:live?(userEmail?`Live · ${userEmail}`:'Live · Firebase'):(userEmail?`Synced · ${userEmail}`:'Synced')},
-    syncing:{cls:'sync-syncing',icon:'🔄',lbl:'Syncing…'},
-    error:{cls:'sync-error',icon:'⚠️',lbl:'Sync error · local only'},
-    offline:{cls:'sync-offline',icon:'💾',lbl:'Local only · not connected'}};
+  const map={saved:{cls:'sync-saved',icon:'🔥',lbl:live?(userEmail?`Firebase · ${userEmail}`:'Firebase · Live'):(userEmail?`Firebase · ${userEmail}`:'Firebase · Saved')},
+    syncing:{cls:'sync-syncing',icon:'🔄',lbl:'Syncing to Firebase…'},
+    error:{cls:'sync-error',icon:'⚠️',lbl:'Sync error · saved locally'},
+    offline:{cls:'sync-offline',icon:'💾',lbl:'Offline · sign in to sync'}};
   const s=map[syncStatus]||map.offline;
   const liveIndicator=live&&syncStatus==='saved'?`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#6EE7B7;margin-left:5px;animation:pulse 2s ease-in-out infinite" title="Real-time sync"></span>`:'';
   const btn=conn?`<button class="btn btn-ghost" style="padding:4px 10px;font-size:.72rem;flex-shrink:0" data-a="sign-out">Sign out</button>`
@@ -5353,10 +5353,10 @@ function rHistory(){
 function rSettings(){
   const conn=!!(fbAuth&&fbAuth.currentUser);
   return`<div class="card" style="border-color:${conn?'var(--success)':'var(--gold)'}">
-    <h3 style="margin-bottom:8px">☁️ Google Drive Sync</h3>
-    ${conn?`<p style="font-size:.85rem;margin-bottom:10px;line-height:1.6"><span style="color:var(--success)">✅ Connected${userEmail?' as <strong>'+userEmail+'</strong>':''}</span></p>
+    <h3 style="margin-bottom:8px">🔥 Firebase Sync</h3>
+    ${conn?`<p style="font-size:.85rem;margin-bottom:10px;line-height:1.6"><span style="color:var(--success)">✅ Connected${userEmail?' as <strong>'+userEmail+'</strong>':''}</span><br><span style="font-size:.78rem;color:var(--muted)">Real-time sync active — all devices update instantly</span></p>
       <button class="btn btn-ghost btn-full" data-a="sign-out">Sign out</button>`
-    :`<p style="color:var(--muted);font-size:.85rem;margin-bottom:10px;line-height:1.6">Connect Google Drive to sync across all devices. Requires hosting at a web URL (e.g. Netlify).</p>
+    :`<p style="color:var(--muted);font-size:.85rem;margin-bottom:10px;line-height:1.6">Sign in with Google to sync across all devices in real-time via Firebase.</p>
       <button class="btn btn-primary btn-full" data-a="sign-in">🔗 Sign in with Google</button>`}
   </div>
   <div class="card">
