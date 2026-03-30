@@ -346,14 +346,30 @@ let pollInterval=null; // kept for compatibility but unused with Firebase
 // ═══════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════
-function saveLocal(){try{localStorage.setItem('stb-v4',JSON.stringify(D));}catch(e){}}
-function loadLocal(){try{const v=localStorage.getItem('stb-v4')||localStorage.getItem('stb-v3');return v?JSON.parse(v):null;}catch(e){return null;}}
+function localKey(){
+  // Namespace by user UID so different Google accounts don't share local storage
+  const uid=fbAuth?.currentUser?.uid;
+  return uid?'stb-v4-'+uid:'stb-v4';
+}
+function saveLocal(){try{localStorage.setItem(localKey(),JSON.stringify(D));}catch(e){}}
+function loadLocal(){
+  try{
+    // Try user-namespaced key first, then legacy key
+    const uid=fbAuth?.currentUser?.uid;
+    const key=uid?'stb-v4-'+uid:'stb-v4';
+    const v=localStorage.getItem(key);
+    if(v)return JSON.parse(v);
+    // Legacy non-namespaced key — only use if it's for THIS user (check children names etc.)
+    // Don't use legacy data for a freshly signed-in different user
+    if(!uid)return JSON.parse(localStorage.getItem('stb-v4')||'null');
+    return null;
+  }catch(e){return null;}
+}
 
 // ═══════════════════════════════════════
 // FIREBASE AUTH & FIRESTORE
 // ═══════════════════════════════════════
 function maybeConnect(){
-  // Load offline data immediately so app is usable
   D=migrateData(loadLocal()||clone(DEFAULT_DATA));
   view='home';syncStatus='offline';checkDailyReset();render();startTick();
 }
@@ -374,6 +390,8 @@ function signOut(){
   if(fbUnsubscribe){fbUnsubscribe();fbUnsubscribe=null;}
   if(pollInterval){clearInterval(pollInterval);pollInterval=null;}
   if(fbAuth)fbAuth.signOut();
+  // Clear in-memory data so previous user's data doesn't show during transition
+  D=null;
   navStack=[];syncStatus='offline';userEmail='';
   toast('Signed out');render();
 }
@@ -426,6 +444,7 @@ async function loadFromFirestore(uid){
 
 async function writeToFirestore(){
   if(!fbDb||!fbAuth?.currentUser)return;
+  if(!D||!D.settings)return; // don't write empty/invalid data
   const uid=fbAuth.currentUser.uid;
   syncStatus='syncing';renderSyncBar();
   try{
