@@ -292,64 +292,37 @@ const CAT_MAP={'chores':'cat-chores','exercise':'cat-exercise','reading':'cat-re
   'music':'cat-music','school':'cat-school','church':'cat-church','character':'cat-character','bonus':'cat-bonus'};
 
 const DEFAULT_DATA={
-  children:[
-    {id:'c1',name:'Child 1',age:10,points:0,color:'#FF6B6B',bg:'linear-gradient(135deg,#FF6B6B,#FF8E53)',
-      emoji:'⭐',rollover:'indefinite',timer:null,requirements:[],overtimeRate:null,dailyUnlock:null,pendingMinutes:0,requireSchoolSession:true,recMaxDay:120,recMaxWeekend:180,recMaxWeek:600,schoolMinDay:30,schoolDailyGoal:180,schoolMinWeek:120,dailyBalance:{},dailyBalanceBonusPts:5,dailyBalanceBonusDate:'',schoolDailyAccum:0,schoolDailyAccumDate:'',schoolWeeklyBonusDate:'',weeklyWinnerBonusDate:'',bonusPts:0,monthlyBudget:200,weeklyBudget:50,monthStartDay:1,exchangeCapPct:25,childStartDate:null,pocketMoneyDay:5,dailyAllowancePaid:0,dailyAllowanceDate:'',dailyActivityTarget:5,schoolOffDates:{},holidayBlocks:[],wellness:{enabled:true,threshold:50,checks:{
-  meals:{enabled:true,frequency:3},breakfast:{enabled:true,frequency:1,customOptions:['🥣 Cereal','🥚 Eggs','🍞 Toast','🍌 Fruit','✅ Yes I ate']},
-  water:{enabled:true,frequency:3,customOptions:['💧 Just now','🥤 Earlier','❌ Not yet']},
-  movement:{enabled:true,frequency:2,customOptions:['🚶 Walked','🤸 Stretched','🏃 Ran','✅ Break taken']},
-  rest:{enabled:true,frequency:1,customOptions:['😴 Had a rest','🛋️ Chilling','✅ I am ok']},
-  freshair:{enabled:true,frequency:1,customOptions:['🌳 Been outside','🪟 Window open','✅ Going now']}
-}},pocketMoneyNotify:false,goalMatchPct:50,recStrikes:0,recStrikeDate:'',recLastCleanDate:'',minPayoutDays:4,minPayoutBalance:20,preferredPayMethod:'Bank transfer',bankAccount:'',pointsPerRand:10,walletBalance:0,goals:[],recDisabled:false,recDisabledReason:'',recStart:'',recEnd:''},
-    {id:'c2',name:'Child 2',age:12,points:0,color:'#4ECDC4',bg:'linear-gradient(135deg,#4ECDC4,#44A8B3)',
-      emoji:'🌟',rollover:'indefinite',timer:null,requirements:[],overtimeRate:null,dailyUnlock:null,pendingMinutes:0,requireSchoolSession:true,recMaxDay:120,recMaxWeekend:180,recMaxWeek:600,schoolMinDay:30,schoolDailyGoal:180,schoolMinWeek:120,dailyBalance:{},dailyBalanceBonusPts:5,dailyBalanceBonusDate:'',schoolDailyAccum:0,schoolDailyAccumDate:'',schoolWeeklyBonusDate:'',weeklyWinnerBonusDate:'',bonusPts:0,monthlyBudget:200,weeklyBudget:50,monthStartDay:1,exchangeCapPct:25,childStartDate:null,pocketMoneyDay:5,dailyAllowancePaid:0,dailyAllowanceDate:'',dailyActivityTarget:5,schoolOffDates:{},holidayBlocks:[],wellness:{enabled:true,threshold:50,checks:{
-  meals:{enabled:true,frequency:3},breakfast:{enabled:true,frequency:1,customOptions:['🥣 Cereal','🥚 Eggs','🍞 Toast','🍌 Fruit','✅ Yes I ate']},
-  water:{enabled:true,frequency:3,customOptions:['💧 Just now','🥤 Earlier','❌ Not yet']},
-  movement:{enabled:true,frequency:2,customOptions:['🚶 Walked','🤸 Stretched','🏃 Ran','✅ Break taken']},
-  rest:{enabled:true,frequency:1,customOptions:['😴 Had a rest','🛋️ Chilling','✅ I am ok']},
-  freshair:{enabled:true,frequency:1,customOptions:['🌳 Been outside','🪟 Window open','✅ Going now']}
-}},pocketMoneyNotify:false,goalMatchPct:50,recStrikes:0,recStrikeDate:'',recLastCleanDate:'',minPayoutDays:4,minPayoutBalance:20,preferredPayMethod:'Bank transfer',bankAccount:'',pointsPerRand:10,walletBalance:0,goals:[],recDisabled:false,recDisabledReason:'',recStart:'',recEnd:''},
-    {id:'c3',name:'Child 3',age:15,points:0,color:'#A78BFA',bg:'linear-gradient(135deg,#A78BFA,#7C3AED)',
-      emoji:'✨',rollover:'indefinite',timer:null,requirements:[],overtimeRate:null,dailyUnlock:null,pendingMinutes:0,requireSchoolSession:true,recMaxDay:120,recMaxWeekend:180,recMaxWeek:600,schoolMinDay:30,schoolDailyGoal:180,schoolMinWeek:120,dailyBalance:{},dailyBalanceBonusPts:5,dailyBalanceBonusDate:'',schoolDailyAccum:0,schoolDailyAccumDate:'',schoolWeeklyBonusDate:'',weeklyWinnerBonusDate:'',bonusPts:0,monthlyBudget:200,weeklyBudget:50,monthStartDay:1,exchangeCapPct:25,childStartDate:null,pocketMoneyDay:5,dailyAllowancePaid:0,dailyAllowanceDate:'',dailyActivityTarget:5,schoolOffDates:{},holidayBlocks:[],wellness:{enabled:true,threshold:50,checks:{
-  meals:{enabled:true,frequency:3},breakfast:{enabled:true,frequency:1,customOptions:['🥣 Cereal','🥚 Eggs','🍞 Toast','🍌 Fruit','✅ Yes I ate']},
-  water:{enabled:true,frequency:3,customOptions:['💧 Just now','🥤 Earlier','❌ Not yet']},
-  movement:{enabled:true,frequency:2,customOptions:['🚶 Walked','🤸 Stretched','🏃 Ran','✅ Break taken']},
-  rest:{enabled:true,frequency:1,customOptions:['😴 Had a rest','🛋️ Chilling','✅ I am ok']},
-  freshair:{enabled:true,frequency:1,customOptions:['🌳 Been outside','🪟 Window open','✅ Going now']}
-}},pocketMoneyNotify:false,goalMatchPct:50,recStrikes:0,recStrikeDate:'',recLastCleanDate:'',minPayoutDays:4,minPayoutBalance:20,preferredPayMethod:'Bank transfer',bankAccount:'',pointsPerRand:10,walletBalance:0,goals:[],recDisabled:false,recDisabledReason:'',recStart:'',recEnd:''},
+  children:[],
+  categories:[
+    {id:'cat-chores',name:'Chores',emoji:'🧹',color:'#FF6B6B'},
+    {id:'cat-school',name:'School',emoji:'📚',color:'#4ECDC4'},
+    {id:'cat-reading',name:'Reading',emoji:'📖',color:'#45B7D1'},
+    {id:'cat-exercise',name:'Exercise',emoji:'🏃',color:'#96CEB4'},
+    {id:'cat-music',name:'Music',emoji:'🎵',color:'#FFEAA7'},
+    {id:'cat-church',name:'Church',emoji:'⛪',color:'#DDA0DD'},
+    {id:'cat-character',name:'Character',emoji:'❤️',color:'#FFB347'},
+    {id:'cat-bonus',name:'Bonus',emoji:'🏆',color:'#98D8C8'},
+    {id:'cat-general',name:'General',emoji:'⭐',color:'#B0C4DE'},
   ],
-  categories:DEFAULT_CATS,
   activities:[
     {id:'a1',name:'Make bed & tidy room',points:2,bonusPoints:0,minMins:0,bonusIntervalMins:10,cat:'cat-chores',emoji:'🛏️',approval:true,subActivities:[]},
     {id:'a2',name:'Major chore (dishes, vacuuming…)',points:5,bonusPoints:0,minMins:0,bonusIntervalMins:10,cat:'cat-chores',emoji:'🧹',approval:true,subActivities:[]},
     {id:'a3',name:'Reading (30 min)',points:3,bonusPoints:1,minMins:30,bonusIntervalMins:15,cat:'cat-reading',emoji:'📚',approval:true,subActivities:[]},
     {id:'a4',name:'Exercise / outdoor play (1 hr)',points:5,bonusPoints:2,minMins:60,bonusIntervalMins:15,cat:'cat-exercise',emoji:'🏃',approval:true,subActivities:[]},
     {id:'a5',name:'Music practice (30 min)',points:4,bonusPoints:2,minMins:30,bonusIntervalMins:15,cat:'cat-music',emoji:'🎵',approval:true,subActivities:[]},
-    {id:'a6',name:'Homeschool bonus work',points:8,bonusPoints:3,minMins:60,bonusIntervalMins:30,cat:'cat-school',emoji:'📖',approval:true,subActivities:[]},
-    {id:'a7',name:'Church duty / service',points:8,bonusPoints:3,minMins:0,bonusIntervalMins:15,cat:'cat-church',emoji:'⛪',approval:true,subActivities:[]},
-    {id:'a8',name:'Helped a sibling',points:2,bonusPoints:1,minMins:0,bonusIntervalMins:10,cat:'cat-character',emoji:'🤝',approval:true,subActivities:[]},
-    {id:'a9',name:'Act of kindness',points:3,bonusPoints:1,minMins:0,bonusIntervalMins:10,cat:'cat-character',emoji:'❤️',approval:true,subActivities:[]},
-    {id:'a10',name:'Full daily schedule completed',points:5,bonusPoints:0,minMins:0,bonusIntervalMins:10,cat:'cat-bonus',emoji:'🏆',approval:true,subActivities:[]},
-    {id:'a11',name:'Archery practice',points:4,bonusPoints:2,minMins:45,bonusIntervalMins:15,cat:'cat-exercise',emoji:'🏹',approval:true,subActivities:[]},
-    {id:'a12',name:'Helped cook a meal',points:4,bonusPoints:1,minMins:0,bonusIntervalMins:10,cat:'cat-chores',emoji:'🍳',approval:true,subActivities:[]},
-    {id:'a13',name:'Laundry (wash, fold & pack away)',points:4,bonusPoints:0,minMins:0,bonusIntervalMins:10,cat:'cat-chores',emoji:'👕',approval:true,subActivities:[]},
-    {id:'a14',name:'Journaling (15 min)',points:2,bonusPoints:1,minMins:15,bonusIntervalMins:10,cat:'cat-character',emoji:'✏️',approval:true,subActivities:[]},
-    {id:'a15',name:'Creative project (art, craft, writing)',points:3,bonusPoints:2,minMins:30,bonusIntervalMins:15,cat:'cat-bonus',emoji:'🎨',approval:true,subActivities:[]},
-    {id:'a16',name:'Voluntary screen-free hour',points:3,bonusPoints:0,minMins:60,bonusIntervalMins:30,cat:'cat-bonus',emoji:'🌿',approval:true,subActivities:[],screenFreeSwap:true},
-    {id:'a17',name:'Pet care duties',points:2,bonusPoints:0,minMins:0,bonusIntervalMins:10,cat:'cat-chores',emoji:'🐾',approval:true,subActivities:[]},
-    {id:'a18',name:'Grocery shopping assistance',points:3,bonusPoints:1,minMins:0,bonusIntervalMins:10,cat:'cat-chores',emoji:'🛒',approval:true,subActivities:[]},
+    {id:'a6',name:'Helped a sibling',points:2,bonusPoints:1,minMins:0,bonusIntervalMins:10,cat:'cat-character',emoji:'🤝',approval:true,subActivities:[]},
+    {id:'a7',name:'Act of kindness',points:3,bonusPoints:1,minMins:0,bonusIntervalMins:10,cat:'cat-character',emoji:'❤️',approval:true,subActivities:[]},
   ],
   timeBlocks:[
-    {id:'tb1',name:'30 Minutes',points:10,minutes:30,emoji:'⚡'},
-    {id:'tb2',name:'1 Hour',points:18,minutes:60,emoji:'🕐'},
-    {id:'tb3',name:'2 Hours',points:30,minutes:120,emoji:'🕑'},
-    {id:'tb4',name:'Half Day Pass',points:50,minutes:240,emoji:'🌟'},
-    {id:'tb5',name:'Full Day Pass',points:80,minutes:480,emoji:'🏆'},
+    {id:'tb1',name:'30 Minutes',points:10,minutes:30,emoji:'⏱️'},
+    {id:'tb2',name:'1 Hour',points:19,minutes:60,emoji:'🕐'},
+    {id:'tb3',name:'2 Hours',points:35,minutes:120,emoji:'🕑'},
   ],
-  pendingUnlocks:[],
-  dailyReports:[],
-  log:[],
-  settings:{pin:'1975',lastReset:new Date().toISOString().split('T')[0],overtimeRate:2,schoolPointMins:10,schoolPointAmt:2,schoolMinMins:15,leaderboard:{prize1:20,prize2:10,prize3:5,participation:3,targetPct:70},wellnessMealTimes:{breakfast:'08:00',lunch:'12:30',dinner:'18:00'},
+  log:[],pendingUnlocks:[],dailyReports:[],
+  settings:{pin:'1234',lastReset:new Date().toISOString().split('T')[0],overtimeRate:2,
+    schoolPointMins:10,schoolPointAmt:2,schoolMinMins:15,
+    leaderboard:{prize1:20,prize2:10,prize3:5,participation:3,targetPct:70},
+    wellnessMealTimes:{breakfast:'08:00',lunch:'12:30',dinner:'18:00'},
     notifEmail:'',emailjsServiceId:'',emailjsTemplateId:'',emailjsPublicKey:'',
     notifBrowser:true,notifChime:true,notifEmail2:true,appUrl:window.location.href}
 };
@@ -365,7 +338,7 @@ let navStack=[];  // [{view, childId}]
 let pendingBuy=null,pendingNote=null,pendingSessionType=null;
 let pendingPostSchool=null,pendingPostRec=null,pendingOvertimeReset=null,pendingStewardship=null;
 let pendingFlagTimer=null;
-let pendingDaySummary=null,pendingScoreBreakdown=null,pendingActivityConfirm=null,emojiPickerTarget=null,pendingPayout=null,pendingGoalSave=null,pendingGoalMoney=null,pendingGoalDelete=null,pendingGoalTransfer=null,pendingFreshStart=null;
+let pendingDaySummary=null,pendingScoreBreakdown=null,pendingActivityConfirm=null,pendingOnboarding=null,emojiPickerTarget=null,pendingPayout=null,pendingGoalSave=null,pendingGoalMoney=null,pendingGoalDelete=null,pendingGoalTransfer=null,pendingFreshStart=null;
 let pendingActivityTimer=null; // {cid, aid} — activity timer picker
 let syncStatus='offline',saveTimer=null,userEmail='';
 let pollInterval=null; // kept for compatibility but unused with Firebase
@@ -413,6 +386,7 @@ async function loadFromFirestore(uid){
     const docRef=doc(fbDb,'families',uid);
     const snap=await getDoc(docRef);
     const localData=loadLocal();
+    let isNewDoc=false;
     if(snap.exists()){
       const remoteData=migrateData(snap.data());
       const localTime=localData?.localSavedAt;
@@ -427,12 +401,18 @@ async function loadFromFirestore(uid){
         D=remoteData;
       }
     } else {
+      isNewDoc=true;
       D=migrateData(localData||clone(DEFAULT_DATA));
       await writeToFirestore();
       toast('✅ New family account created!');
     }
     syncStatus='saved';saveLocal();
-    checkDailyReset();view='home';render();
+    checkDailyReset();
+    // Trigger onboarding ONLY for brand new Firestore documents (isNewDoc flag)
+    if(isNewDoc&&(!D.children||D.children.length===0)){
+      pendingOnboarding={step:'welcome',pin:'',numChildren:null,kids:[]};
+    }
+    view='home';render();
     // Start real-time listener AFTER initial load
     startRealtimeListener(uid);
   }catch(e){
@@ -2121,6 +2101,7 @@ function render(){
   if(pendingGoalSave)app.insertAdjacentHTML('beforeend',rGoalSaveModal());
   if(pendingSchoolPauseReason)app.insertAdjacentHTML('beforeend',rSchoolPauseReasonModal());
   if(pendingSchoolPause)app.insertAdjacentHTML('beforeend',rSchoolPauseModal());
+  if(pendingOnboarding)app.insertAdjacentHTML('beforeend',rOnboardingModal());
   if(pendingRecWarning)app.insertAdjacentHTML('beforeend',rRecWarningModal());
   if(pendingSchoolConfirm)app.insertAdjacentHTML('beforeend',rSchoolConfirmModal());
   if(pendingActivityConfirm)app.insertAdjacentHTML('beforeend',rActivityConfirmModal());
@@ -5057,6 +5038,106 @@ function rGoalTransferModal(){
 
 
 
+
+function rOnboardingModal(){
+  if(!pendingOnboarding)return'';
+  const step=pendingOnboarding.step||'welcome';
+  const CHILD_COLORS=[
+    {color:'#FF6B6B',bg:'linear-gradient(135deg,#FF6B6B,#FF8E53)'},
+    {color:'#4ECDC4',bg:'linear-gradient(135deg,#4ECDC4,#44A08D)'},
+    {color:'#A78BFA',bg:'linear-gradient(135deg,#A78BFA,#7C3AED)'},
+    {color:'#F59E0B',bg:'linear-gradient(135deg,#F59E0B,#D97706)'},
+    {color:'#10B981',bg:'linear-gradient(135deg,#10B981,#059669)'},
+    {color:'#60A5FA',bg:'linear-gradient(135deg,#60A5FA,#3B82F6)'},
+  ];
+
+  if(step==='welcome'){
+    return`<div class="overlay" style="background:rgba(0,0,0,.85)">
+      <div class="modal-box" style="max-width:340px;text-align:center">
+        <div style="font-size:3.5rem;margin-bottom:10px">🏦</div>
+        <h2 style="margin-bottom:6px">Welcome to ScreenTime Bank!</h2>
+        <p style="color:var(--muted);font-size:.88rem;margin-bottom:20px;line-height:1.6">
+          Let's set up your family account.<br>This takes about 2 minutes.
+        </p>
+        <button class="btn btn-primary btn-full" style="padding:14px;font-size:1rem" data-a="onboard-next" data-step="pin">
+          Let's Go! →
+        </button>
+      </div>
+    </div>`;
+  }
+
+  if(step==='pin'){
+    return`<div class="overlay" style="background:rgba(0,0,0,.85)">
+      <div class="modal-box" style="max-width:340px;text-align:center">
+        <span class="cion">🔒</span>
+        <h3 style="margin-bottom:6px">Set Your Parent PIN</h3>
+        <p style="color:var(--muted);font-size:.85rem;margin-bottom:16px">This PIN protects parent settings</p>
+        <div style="display:flex;gap:6px;justify-content:center;margin-bottom:16px;flex-wrap:wrap">
+          ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(d=>d===''?'<div style="width:56px"></div>':`<button class="btn btn-ghost" style="width:56px;height:56px;font-size:1.2rem;font-weight:800;border-radius:12px" data-a="onboard-pin-digit" data-d="${d}">${d}</button>`).join('')}
+        </div>
+        <div style="text-align:center;margin-bottom:16px">
+          <span style="font-size:1.5rem;letter-spacing:8px">${'●'.repeat(pendingOnboarding.pin?.length||0)+'○'.repeat(4-(pendingOnboarding.pin?.length||0))}</span>
+        </div>
+        <div style="font-size:.75rem;color:var(--muted)">Enter 4 digits</div>
+      </div>
+    </div>`;
+  }
+
+  if(step==='family'){
+    return`<div class="overlay" style="background:rgba(0,0,0,.85)">
+      <div class="modal-box" style="max-width:340px">
+        <span class="cion">👨‍👩‍👧‍👦</span>
+        <h3 style="margin-bottom:6px">Your Family</h3>
+        <p style="color:var(--muted);font-size:.85rem;margin-bottom:14px">How many children will use ScreenTime Bank?</p>
+        <div style="display:flex;justify-content:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+          ${[1,2,3,4,5,6].map(n=>`<button class="btn ${(pendingOnboarding.numChildren||0)===n?'btn-primary':'btn-ghost'}" style="width:52px;height:52px;font-size:1.1rem;font-weight:900;border-radius:14px" data-a="onboard-num-children" data-n="${n}">${n}</button>`).join('')}
+        </div>
+        ${pendingOnboarding.numChildren?`<button class="btn btn-primary btn-full" style="padding:12px" data-a="onboard-next" data-step="children">Next →</button>`:''}
+      </div>
+    </div>`;
+  }
+
+  if(step==='children'){
+    const n=pendingOnboarding.numChildren||1;
+    const kids=pendingOnboarding.kids||[];
+    return`<div class="overlay" style="background:rgba(0,0,0,.85);overflow-y:auto">
+      <div class="modal-box" style="max-width:360px;max-height:90vh;overflow-y:auto">
+        <span class="cion">👧</span>
+        <h3 style="margin-bottom:4px">Add Your Children</h3>
+        <p style="color:var(--muted);font-size:.82rem;margin-bottom:14px">Fill in details for each child</p>
+        ${Array.from({length:n},(_,i)=>{
+          const k=kids[i]||{};
+          const col=CHILD_COLORS[i%CHILD_COLORS.length];
+          return`<div style="background:var(--card2);border-radius:12px;padding:12px;margin-bottom:10px;border-left:4px solid ${col.color}">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div style="width:38px;height:38px;border-radius:50%;background:${col.bg};display:flex;align-items:center;justify-content:center;font-size:1.3rem">${k.emoji||'👤'}</div>
+              <div style="font-weight:800">Child ${i+1}</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px">
+              <div>
+                <label class="form-label" style="font-size:.68rem">Name</label>
+                <input type="text" class="form-input" id="ob-name-${i}" value="${k.name||''}" placeholder="e.g. Emma">
+              </div>
+              <div>
+                <label class="form-label" style="font-size:.68rem">Age</label>
+                <input type="number" class="form-input" id="ob-age-${i}" value="${k.age||10}" min="4" max="18">
+              </div>
+            </div>
+            <label class="form-label" style="font-size:.68rem">Emoji</label>
+            <div style="display:flex;gap:5px;flex-wrap:wrap">
+              ${['👦','👧','🧒','👼','🦁','🐯','🦊','🐼','🐨','🦄','⭐','🌟','🚀','🎯','💎'].map(e=>`<button style="font-size:1.3rem;background:${k.emoji===e?'var(--card)':'none'};border:1px solid ${k.emoji===e?'var(--gold)':'transparent'};border-radius:8px;padding:3px;cursor:pointer" data-a="ob-pick-emoji" data-idx="${i}" data-e="${e}">${e}</button>`).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="btn btn-ghost" data-a="onboard-next" data-step="family">← Back</button>
+          <button class="btn btn-primary" style="flex:1" data-a="onboard-finish">✅ Start!</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  return'';
+}
 function rRecWarningModal(){
   if(!pendingRecWarning)return'';
   const{cid,warningStartedAt}=pendingRecWarning;
@@ -5959,6 +6040,83 @@ document.addEventListener('click',e=>{
     const extraSecs=ats?ats.bonusSecs%60:0;
     pendingActivityConfirm={cid,actName:act?act.name:'activity',emoji:act?act.emoji:'⭐',extraMins,extraSecs};
     pendingActivityPause=null;
+    render();
+  }
+  else if(a==='onboard-next'){
+    if(!pendingOnboarding)pendingOnboarding={};
+    pendingOnboarding.step=el.dataset.step;
+    render();
+  }
+  else if(a==='onboard-pin-digit'){
+    if(!pendingOnboarding)return;
+    const d=el.dataset.d;
+    if(d==='⌫')pendingOnboarding.pin=(pendingOnboarding.pin||'').slice(0,-1);
+    else if((pendingOnboarding.pin||'').length<4)pendingOnboarding.pin=(pendingOnboarding.pin||'')+d;
+    if((pendingOnboarding.pin||'').length===4){
+      D.settings.pin=pendingOnboarding.pin;
+      pendingOnboarding.step='family';
+    }
+    render();
+  }
+  else if(a==='onboard-num-children'){
+    if(!pendingOnboarding)return;
+    pendingOnboarding.numChildren=parseInt(el.dataset.n);
+    pendingOnboarding.kids=pendingOnboarding.kids||[];
+    render();
+  }
+  else if(a==='ob-pick-emoji'){
+    if(!pendingOnboarding)return;
+    const idx=parseInt(el.dataset.idx);
+    if(!pendingOnboarding.kids)pendingOnboarding.kids=[];
+    if(!pendingOnboarding.kids[idx])pendingOnboarding.kids[idx]={};
+    pendingOnboarding.kids[idx].emoji=el.dataset.e;
+    render();
+  }
+  else if(a==='onboard-finish'){
+    if(!pendingOnboarding)return;
+    const n=pendingOnboarding.numChildren||1;
+    const CHILD_COLORS=[
+      {color:'#FF6B6B',bg:'linear-gradient(135deg,#FF6B6B,#FF8E53)'},
+      {color:'#4ECDC4',bg:'linear-gradient(135deg,#4ECDC4,#44A08D)'},
+      {color:'#A78BFA',bg:'linear-gradient(135deg,#A78BFA,#7C3AED)'},
+      {color:'#F59E0B',bg:'linear-gradient(135deg,#F59E0B,#D97706)'},
+      {color:'#10B981',bg:'linear-gradient(135deg,#10B981,#059669)'},
+      {color:'#60A5FA',bg:'linear-gradient(135deg,#60A5FA,#3B82F6)'},
+    ];
+    D.children=[];
+    for(let i=0;i<n;i++){
+      const k=pendingOnboarding.kids?.[i]||{};
+      const nameEl=document.getElementById('ob-name-'+i);
+      const ageEl=document.getElementById('ob-age-'+i);
+      const name=(nameEl?.value?.trim())||('Child '+(i+1));
+      const age=parseInt(ageEl?.value)||10;
+      const col=CHILD_COLORS[i%CHILD_COLORS.length];
+      D.children.push({
+        id:'c'+(i+1),name,age,points:0,color:col.color,bg:col.bg,
+        emoji:k.emoji||'⭐',rollover:'indefinite',timer:null,requirements:[],
+        overtimeRate:null,dailyUnlock:null,pendingMinutes:0,requireSchoolSession:true,
+        recMaxDay:120,recMaxWeekend:180,recMaxWeek:600,schoolMinDay:30,
+        schoolDailyGoal:180,schoolMinWeek:120,dailyBalance:{},dailyBalanceBonusPts:5,
+        dailyBalanceBonusDate:'',schoolDailyAccum:0,schoolDailyAccumDate:'',
+        schoolWeeklyBonusDate:'',weeklyWinnerBonusDate:'',bonusPts:0,
+        monthlyBudget:200,weeklyBudget:50,monthStartDay:1,exchangeCapPct:25,
+        childStartDate:new Date().toISOString().split('T')[0],
+        pocketMoneyDay:5,dailyAllowancePaid:0,dailyAllowanceDate:'',
+        dailyActivityTarget:5,schoolOffDates:{},holidayBlocks:[],
+        wellness:{enabled:true,threshold:50,checks:{
+          meals:{enabled:true,frequency:3},water:{enabled:true,frequency:4},
+          movement:{enabled:true,frequency:1},rest:{enabled:true,frequency:1},
+          freshair:{enabled:true,frequency:1}}},
+        pocketMoneyNotify:false,goalMatchPct:50,minPayoutDays:4,minPayoutBalance:20,
+        preferredPayMethod:'Bank transfer',bankAccount:'',pointsPerRand:10,
+        walletBalance:0,goals:[],recDisabled:false,recDisabledReason:'',
+        recStart:'',recEnd:'',recStrikes:0,recStrikeDate:'',recLastCleanDate:'',
+        monthlyBudget:200,weeklyBudget:50,monthStartDay:1,exchangeCapPct:25,
+      });
+    }
+    pendingOnboarding=null;
+    save(true);
+    toast('🎉 Welcome to ScreenTime Bank, '+D.children[0].name+'!');
     render();
   }
   else if(a==='rec-warning-stop'){
