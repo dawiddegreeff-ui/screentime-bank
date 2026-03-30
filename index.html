@@ -474,7 +474,9 @@ async function startRealtimeListener(uid){
       const remoteTime=remote?.localSavedAt;
       const localTime=D?.localSavedAt;
       if(remoteTime===localTime)return; // same save — skip
-      D=mergeData(remote,D);
+      // Use remote directly — it is the source of truth for live updates
+      // Do NOT merge — merging causes local stale state to override remote changes
+      D=remote;
       saveLocal();
       render();
       syncStatus='saved';renderSyncBar();
