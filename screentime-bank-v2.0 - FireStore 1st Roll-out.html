@@ -6069,12 +6069,30 @@ document.addEventListener('click',e=>{
     const idx=parseInt(el.dataset.idx);
     if(!pendingOnboarding.kids)pendingOnboarding.kids=[];
     if(!pendingOnboarding.kids[idx])pendingOnboarding.kids[idx]={};
+    // Save all current name/age inputs before re-rendering
+    const n=pendingOnboarding.numChildren||1;
+    for(let i=0;i<n;i++){
+      if(!pendingOnboarding.kids[i])pendingOnboarding.kids[i]={};
+      const nameEl=document.getElementById('ob-name-'+i);
+      const ageEl=document.getElementById('ob-age-'+i);
+      if(nameEl)pendingOnboarding.kids[i].name=nameEl.value;
+      if(ageEl)pendingOnboarding.kids[i].age=ageEl.value;
+    }
     pendingOnboarding.kids[idx].emoji=el.dataset.e;
     render();
   }
   else if(a==='onboard-finish'){
     if(!pendingOnboarding)return;
     const n=pendingOnboarding.numChildren||1;
+    // Save any unsaved name/age inputs first
+    if(!pendingOnboarding.kids)pendingOnboarding.kids=[];
+    for(let i=0;i<n;i++){
+      if(!pendingOnboarding.kids[i])pendingOnboarding.kids[i]={};
+      const nameEl=document.getElementById('ob-name-'+i);
+      const ageEl=document.getElementById('ob-age-'+i);
+      if(nameEl&&nameEl.value.trim())pendingOnboarding.kids[i].name=nameEl.value.trim();
+      if(ageEl)pendingOnboarding.kids[i].age=parseInt(ageEl.value)||10;
+    }
     const CHILD_COLORS=[
       {color:'#FF6B6B',bg:'linear-gradient(135deg,#FF6B6B,#FF8E53)'},
       {color:'#4ECDC4',bg:'linear-gradient(135deg,#4ECDC4,#44A08D)'},
