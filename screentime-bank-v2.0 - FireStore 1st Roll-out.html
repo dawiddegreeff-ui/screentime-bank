@@ -335,7 +335,7 @@ let pinBuf='',filterCat='all',editMode={type:null,id:null};
 let adjVals={},tickInterval=null,chimeInterval=null,pendingSchoolPause=null,pendingActivityPause=null,pendingWellnessCheck=null,welcomeDismissed={},pendingSchoolPauseReason=null,spToWalletDraft=null;
 let tempSubActivities=[]; // buffer for chips on new activity form
 let navStack=[];  // [{view, childId}]
-let pendingBuy=null,pendingNote=null,pendingSessionType=null;
+let pendingBuy=null,pendingNote=null,pendingSessionType=null,pendingSchoolMinimum=null;
 let pendingPostSchool=null,pendingPostRec=null,pendingOvertimeReset=null,pendingStewardship=null;
 let pendingFlagTimer=null;
 let pendingDaySummary=null,pendingScoreBreakdown=null,pendingActivityConfirm=null,pendingOnboarding=null,emojiPickerTarget=null,pendingPayout=null,pendingGoalSave=null,pendingGoalMoney=null,pendingGoalDelete=null,pendingGoalTransfer=null,pendingFreshStart=null;
@@ -1113,14 +1113,15 @@ function startTick(){
           chimeInterval=setInterval(()=>{if(pendingSchoolPause)playTimerEnd();else{clearInterval(chimeInterval);chimeInterval=null;}},30000);
           save();render();return;
         }
-        // Check minimum school time reached — show encouragement notification
-        if(sts&&sts.minimumJustMet&&!c.timer.minimumNotified){
+        // Check minimum school time reached — pause timer and show popup
+        if(sts&&sts.minimumMet&&!c.timer.minimumNotified&&!pendingSchoolMinimum&&!pendingSchoolPause){
           c.timer.minimumNotified=true;
-          encouragementBanners[c.id]={
-            emoji:'✅',
-            msg:`Minimum school done (${sts.minDay} min)! You can take a screen break 🎮 — but keep going for your daily goal!`
-          };
-          playChime();
+          c.timer.popupPausedAt=Date.now();
+          pendingSchoolMinimum={cid:c.id,autoStopAt:Date.now()+2*60*1000};
+          if(view!=='child'||childId!==c.id){/* badge shows on home */}
+          playTimerEnd();
+          if(chimeInterval)clearInterval(chimeInterval);
+          chimeInterval=setInterval(()=>{if(pendingSchoolMinimum)playTimerEnd();else{clearInterval(chimeInterval);chimeInterval=null;}},30000);
           save();render();
         }
         if(!sts||!sts.goalMet)return;
@@ -1183,6 +1184,19 @@ function startTick(){
       });
     }
     // ── AUTO-STOP countdown ──────────────────────────────────────────
+    if(pendingSchoolMinimum){
+      const remaining=Math.ceil((pendingSchoolMinimum.autoStopAt-Date.now())/1000);
+      const el=document.getElementById('school-min-countdown');
+      if(el)el.textContent=remaining+'s';
+      if(Date.now()>=pendingSchoolMinimum.autoStopAt){
+        // Auto-stop — child didn't respond
+        if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
+        const c=child(pendingSchoolMinimum.cid);
+        if(c?.timer?.popupPausedAt){const fm=Date.now()-c.timer.popupPausedAt;c.timer.startedAt+=fm;delete c.timer.popupPausedAt;}
+        stopSchoolSession(pendingSchoolMinimum.cid);
+        pendingSchoolMinimum=null;render();
+      }
+    }
     if(pendingRecWarning){
       const rw=pendingRecWarning;
       const elapsed=Math.floor((Date.now()-rw.warningStartedAt)/1000);
@@ -2181,6 +2195,7 @@ function render(){
   if(pendingSchoolPause)app.insertAdjacentHTML('beforeend',rSchoolPauseModal());
   if(pendingOnboarding)app.insertAdjacentHTML('beforeend',rOnboardingModal());
   if(pendingRecWarning)app.insertAdjacentHTML('beforeend',rRecWarningModal());
+  if(pendingSchoolMinimum)app.insertAdjacentHTML('beforeend',rSchoolMinimumModal());
   if(pendingSchoolConfirm)app.insertAdjacentHTML('beforeend',rSchoolConfirmModal());
   if(pendingActivityConfirm)app.insertAdjacentHTML('beforeend',rActivityConfirmModal());
   if(pendingActivityPause)app.insertAdjacentHTML('beforeend',rActivityPauseModal());
@@ -5339,6 +5354,63 @@ function rRecWarningModal(){
     </div>
   </div>`;
 }
+
+function rSchoolMinimumModal(){
+  if(!pendingSchoolMinimum)return'';
+  if(view!=='child'||childId!==pendingSchoolMinimum.cid)return'';
+  const{cid}=pendingSchoolMinimum;
+  const c=child(cid);if(!c)return'';
+  const sts=getSchoolTimerState(cid);
+  const minDay=c.schoolMinDay||0;
+  const dailyGoal=c.schoolDailyGoal||0;
+  const stillNeeded=Math.max(0,dailyGoal-minDay);
+  const stillNeededHrs=Math.floor(stillNeeded/60);
+  const stillNeededMins=stillNeeded%60;
+  const stillNeededLabel=stillNeededHrs>0?`${stillNeededHrs}h ${stillNeededMins}min`:`${stillNeededMins} min`;
+  const pts=c.points||0;
+  const interval=D.settings.schoolPointMins||10;
+  const ptsPerInterval=D.settings.schoolPointAmt||2;
+  function snoozeBonus(mins){return Math.floor(mins/interval)*ptsPerInterval;}
+  const b15=snoozeBonus(15);const b30=snoozeBonus(30);
+  return`<div class="bottom-sheet-overlay">
+    <div class="bottom-sheet" style="text-align:center">
+      <div style="font-size:3rem;margin-bottom:8px">🔑</div>
+      <h3 style="margin-bottom:4px">Minimum school done, ${c.name}!</h3>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px">
+        You've done your <strong style="color:var(--text)">${minDay} min</strong> minimum.<br>
+        Recreation is now unlocked 🎮
+      </p>
+      ${dailyGoal>minDay?`<div style="background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.25);border-radius:10px;padding:8px 12px;margin-bottom:14px;font-size:.82rem">
+        📚 <strong style="color:#60A5FA">${stillNeededLabel} still needed</strong> to reach your full daily goal of ${dailyGoal} min
+      </div>`:''}
+      <p style="color:var(--muted);font-size:.82rem;margin-bottom:10px">What would you like to do?</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <button class="btn btn-ghost" style="padding:12px 8px" data-a="school-minimum-continue" data-mins="15" data-cid="${cid}">
+          <div style="font-size:1.1rem">📚</div>
+          <div style="font-size:.82rem;font-weight:800">+15 min school</div>
+          <div style="font-size:.72rem;color:var(--gold)">${b15>0?'+'+b15+' 🌟':'keep going'}</div>
+        </button>
+        <button class="btn btn-ghost" style="padding:12px 8px" data-a="school-minimum-continue" data-mins="30" data-cid="${cid}">
+          <div style="font-size:1.1rem">📚</div>
+          <div style="font-size:.82rem;font-weight:800">+30 min school</div>
+          <div style="font-size:.72rem;color:var(--gold)">${b30>0?'+'+b30+' 🌟':'keep going'}</div>
+        </button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;background:var(--card2);border-radius:12px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-size:.82rem;font-weight:700;color:var(--muted);white-space:nowrap">Custom:</div>
+        <input type="number" class="form-input" id="school-min-custom" placeholder="mins" min="1" max="300"
+          style="flex:1;text-align:center;padding:6px;font-size:.9rem;font-weight:800">
+        <button class="btn btn-primary" style="padding:7px 12px;font-size:.8rem" data-a="school-minimum-continue" data-mins="0" data-cid="${cid}">▶</button>
+      </div>
+      <button class="btn btn-success btn-full" style="padding:12px;margin-bottom:8px" data-a="school-minimum-stop" data-cid="${cid}">
+        🎮 Take a break — stop school timer
+      </button>
+      <div style="font-size:.72rem;color:var(--muted)">
+        Auto-stopping in <span id="school-min-countdown">120</span>s
+      </div>
+    </div>
+  </div>`;
+}
 function rSchoolConfirmModal(){
   if(!pendingSchoolConfirm)return'';
   const{cid,extraMins,extraSecs}=pendingSchoolConfirm;
@@ -6134,7 +6206,7 @@ document.addEventListener('click',e=>{
   const el=e.target.closest('[data-a]');if(!el)return;
   const a=el.dataset.a;
   function push(){navStack.push({view,childId});}
-  if(a==='go-home'){navStack=[];view='home';childId=null;filterCat='all';editMode={type:null,id:null};pendingBuy=null;pendingNote=null;pendingSessionType=null;pendingGoalSave=null;pendingGoalDelete=null;pendingGoalTransfer=null;pendingDaySummary=null;pendingScoreBreakdown=null;pendingRecWarning=null;pendingSchoolConfirm=null;pendingActivityConfirm=null;emojiPickerTarget=null;pendingSchoolPause=null;pendingActivityPause=null;welcomeDismissed={};render();}
+  if(a==='go-home'){navStack=[];view='home';childId=null;filterCat='all';editMode={type:null,id:null};pendingBuy=null;pendingNote=null;pendingSessionType=null;pendingGoalSave=null;pendingGoalDelete=null;pendingGoalTransfer=null;pendingDaySummary=null;pendingScoreBreakdown=null;pendingRecWarning=null;pendingSchoolMinimum=null;pendingSchoolConfirm=null;pendingActivityConfirm=null;emojiPickerTarget=null;pendingSchoolPause=null;pendingActivityPause=null;welcomeDismissed={};render();}
   else if(a==='go-back'){
     const prev=navStack.pop();
     if(prev){view=prev.view;childId=prev.childId;}
@@ -6145,7 +6217,11 @@ document.addEventListener('click',e=>{
     push();childId=el.dataset.cid||childId;view='child';
     // If this child has a frozen goal waiting, show popup now
     const gc=child(childId);
-    if(gc?.timer?.goalFrozenAt&&!pendingSchoolPause&&!pendingActivityPause){
+    // Also show minimum modal if pending for this child
+    if(gc?.timer?.minimumNotified&&gc.timer.popupPausedAt&&!pendingSchoolMinimum&&!pendingSchoolPause){
+      pendingSchoolMinimum={cid:childId,autoStopAt:Date.now()+2*60*1000};
+    }
+    if(gc?.timer?.goalFrozenAt&&!pendingSchoolPause&&!pendingActivityPause&&!pendingSchoolMinimum){
       if(gc.timer.sessionType==='school'){
         if(!gc.timer.goalPauseShownAt){
           gc.timer.goalPauseShownAt=Date.now();
@@ -6343,6 +6419,29 @@ document.addEventListener('click',e=>{
     doOvertimeReset(cid,0);
     // Clear strikes if this was a clean stop (within 5-min window)
     clearRecStrikes(cid);
+  }
+  else if(a==='school-minimum-continue'){
+    // Child wants to keep doing school — snooze by chosen time
+    const cid=el.dataset.cid;const c=child(cid);if(!c||!c.timer)return;
+    const customEl=document.getElementById('school-min-custom');
+    const mins=customEl&&parseInt(customEl.value)>0?parseInt(customEl.value):parseInt(el.dataset.mins)||15;
+    if(c.timer.popupPausedAt){
+      const fm=Date.now()-c.timer.popupPausedAt;
+      c.timer.startedAt+=fm;
+      delete c.timer.popupPausedAt;
+    }
+    c.timer.snoozeUntil=Date.now()+(mins*60*1000);
+    if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
+    pendingSchoolMinimum=null;
+    save();toast('📚 Continuing school for '+mins+' min — great dedication!');render();
+  }
+  else if(a==='school-minimum-stop'){
+    // Child wants a break — stop the school timer
+    const cid=el.dataset.cid;const c=child(cid);
+    if(c?.timer?.popupPausedAt){const fm=Date.now()-c.timer.popupPausedAt;c.timer.startedAt+=fm;delete c.timer.popupPausedAt;}
+    if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
+    pendingSchoolMinimum=null;
+    stopSchoolSession(cid);
   }
   else if(a==='school-confirm-yes'){
     // Yes — log full session including extra time
