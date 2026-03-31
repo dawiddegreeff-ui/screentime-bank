@@ -395,17 +395,33 @@ async function signIn(){
 }
 
 function signOut(){
+  // Stop tick loop
+  if(tickInterval){clearInterval(tickInterval);tickInterval=null;}
+  if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
+  // Stop Firebase listeners
   if(fbUnsubscribe){fbUnsubscribe();fbUnsubscribe=null;}
   if(pollInterval){clearInterval(pollInterval);pollInterval=null;}
+  // Clear all pending state so no leftover popups/modals from previous session
+  pendingSchoolPause=null;pendingSchoolMinimum=null;pendingActivityPause=null;
+  pendingRecWarning=null;pendingBuy=null;pendingNote=null;pendingSessionType=null;
+  pendingFreshStart=null;pendingOnboarding=null;pendingWellnessCheck=null;
+  pendingSchoolConfirm=null;pendingActivityConfirm=null;
+  encouragementBanners={};welcomeDismissed={};
+  navStack=[];childId=null;view='splash';
+  // Clear in-memory data
+  D=null;syncStatus='offline';userEmail='';
   if(fbAuth)fbAuth.signOut();
-  // Clear in-memory data so previous user's data doesn't show during transition
-  D=null;
-  navStack=[];syncStatus='offline';userEmail='';
   toast('Signed out');render();
 }
 
 async function loadFromFirestore(uid){
   if(!fbDb)return;
+  // Clear any leftover state from previous session
+  pendingSchoolPause=null;pendingSchoolMinimum=null;pendingActivityPause=null;
+  pendingRecWarning=null;pendingBuy=null;pendingOnboarding=null;
+  pendingWellnessCheck=null;pendingSchoolConfirm=null;
+  encouragementBanners={};welcomeDismissed={};
+  navStack=[];childId=null;
   syncStatus='syncing';renderSyncBar();
   try{
     const {doc,getDoc}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
