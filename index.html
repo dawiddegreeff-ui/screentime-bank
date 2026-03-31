@@ -439,6 +439,7 @@ async function loadFromFirestore(uid){
       pendingOnboarding={step:'welcome',pin:'',numChildren:null,kids:[]};
     }
     view='home';render();
+    startTick(); // ← must start after data is loaded
     // Start real-time listener AFTER initial load
     startRealtimeListener(uid);
   }catch(e){
@@ -7610,6 +7611,8 @@ window.addEventListener('load',async()=>{
       // If Firebase hasn't resolved auth yet, show splash
       view='splash';render();
     }
+    // Always ensure tick is running
+    if(!tickInterval)startTick();
   },8000);
 });
 </script>
