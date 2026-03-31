@@ -867,7 +867,9 @@ function clearRecStrikes(cid){
 }
 function getTimerState(c){
   if(!c||!c.timer)return null;
-  const elapsed=Date.now()-c.timer.startedAt;
+  // If popup is showing, freeze elapsed at the moment popup opened
+  const now=c.timer.popupPausedAt||Date.now();
+  const elapsed=now-c.timer.startedAt;
   const remaining=c.timer.totalMs-elapsed;
   const secsRemaining=Math.floor(remaining/1000);
   return{secsRemaining,isOvertime:secsRemaining<0,pct:Math.max(0,Math.min(1,remaining/c.timer.totalMs)),label:c.timer.label,sessionType:c.timer.sessionType||'recreation'};
@@ -878,7 +880,9 @@ function getSchoolTimerState(cid){
   const c=child(cid);
   if(!c||!c.timer||c.timer.sessionType!=='school')return null;
   const today=new Date().toISOString().split('T')[0];
-  const sessionElapsedMs=Math.max(0,Date.now()-c.timer.startedAt);
+  // Freeze elapsed at popup moment if popup is showing
+  const now=c.timer.popupPausedAt||Date.now();
+  const sessionElapsedMs=Math.max(0,now-c.timer.startedAt);
   const sessionMins=sessionElapsedMs/60000;
   // Only count accum from today — never carry over stale dates
   const accum=c.schoolDailyAccumDate===today?(c.schoolDailyAccum||0):0;
@@ -1391,7 +1395,8 @@ function stopActivityTimer(cid){
 }
 function getActivityTimerState(c){
   if(!c||!c.timer||c.timer.sessionType!=='activity')return null;
-  const elapsed=Math.max(0,Date.now()-c.timer.startedAt);
+  const now=c.timer.popupPausedAt||Date.now();
+  const elapsed=Math.max(0,now-c.timer.startedAt);
   const elapsedMins=elapsed/60000;
   const minMs=c.timer.totalMs;
   const remaining=minMs-elapsed;
