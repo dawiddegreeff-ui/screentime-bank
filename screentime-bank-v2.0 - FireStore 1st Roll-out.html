@@ -874,7 +874,9 @@ function getSchoolTimerState(cid){
   const dailyRemainSecs=dailyGoal>0?Math.max(0,Math.floor((dailyGoal*60)-(totalTodayMins*60))):null;
   const goalMet=dailyGoal>0&&totalTodayMins>=dailyGoal;
   // Bonus timer: only counts up AFTER goal is met
-  const bonusSecs=goalMet?Math.floor((totalTodayMins-dailyGoal)*60):0;
+  // Subtract time spent showing the popup so bonus doesn't accumulate while child decides
+  const popupFreezeMs=c.timer?.popupPausedAt?(Date.now()-c.timer.popupPausedAt):0;
+  const bonusSecs=goalMet?Math.max(0,Math.floor((totalTodayMins-dailyGoal)*60-(popupFreezeMs/1000))):0;
   const dailyPct=dailyGoal>0?Math.min(1,totalTodayMins/dailyGoal):Math.min(1,sessionMins/60);
   // Weekly
   const weekRemainSecs=weekGoal>0?Math.max(0,Math.floor((weekGoal*60)-(weekDone*60))):null;
@@ -1086,13 +1088,19 @@ function startTick(){
           c.timer.goalPauseShownAt=Date.now();
           c.timer.snoozeUntil=null;
           pendingSchoolPause={cid:c.id,autoStopAt:Date.now()+2*60*1000};
+          c.timer.popupPausedAt=Date.now();
           playTimerEnd();
+          if(chimeInterval)clearInterval(chimeInterval);
+          chimeInterval=setInterval(()=>{if(pendingSchoolPause)playTimerEnd();else{clearInterval(chimeInterval);chimeInterval=null;}},30000);
           save();render();return;
         }
         if(c.timer.snoozeUntil&&Date.now()>=c.timer.snoozeUntil){
           c.timer.snoozeUntil=null;
           pendingSchoolPause={cid:c.id,autoStopAt:Date.now()+2*60*1000};
+          c.timer.popupPausedAt=Date.now();
           playTimerEnd();
+          if(chimeInterval)clearInterval(chimeInterval);
+          chimeInterval=setInterval(()=>{if(pendingSchoolPause)playTimerEnd();else{clearInterval(chimeInterval);chimeInterval=null;}},30000);
           save();render();return;
         }
       });
@@ -5436,6 +5444,15 @@ function rSchoolPauseModal(){
           <div style="font-size:.7rem">I'm done for now</div>
         </button>
       </div>
+      <div style="display:flex;gap:8px;align-items:center;background:var(--card2);border-radius:12px;padding:10px 12px;margin-bottom:12px">
+        <div style="font-size:.82rem;font-weight:700;color:var(--muted);white-space:nowrap">Custom time:</div>
+        <input type="number" class="form-input" id="school-snooze-custom" placeholder="e.g. 45" min="1" max="240"
+          style="flex:1;text-align:center;padding:6px;font-size:.9rem;font-weight:800">
+        <span style="font-size:.78rem;color:var(--muted)">min</span>
+        <button class="btn btn-primary" style="padding:7px 12px;font-size:.8rem;white-space:nowrap" data-a="school-pause-snooze" data-mins="0" data-cid="${c.id}">
+          Go ▶
+        </button>
+      </div>
       <div style="font-size:.75rem;color:var(--muted)">
         Auto-stopping in <span id="school-pause-countdown">120</span>s if no response
       </div>
@@ -6291,12 +6308,29 @@ document.addEventListener('click',e=>{
   }
   else if(a==='school-pause-snooze'){
     const c=child(el.dataset.cid);if(!c||!c.timer)return;
-    const mins=parseInt(el.dataset.mins)||15;
+    // Read custom time from input if set, otherwise use preset
+    const customInput=document.getElementById('school-snooze-custom');
+    const mins=customInput&&parseInt(customInput.value)>0?parseInt(customInput.value):parseInt(el.dataset.mins)||15;
+    // Adjust timer startedAt to account for frozen time during popup
+    if(c.timer.popupPausedAt){
+      const frozenMs=Date.now()-c.timer.popupPausedAt;
+      c.timer.startedAt+=frozenMs; // push start forward = subtract frozen time from elapsed
+      delete c.timer.popupPausedAt;
+    }
     c.timer.snoozeUntil=Date.now()+(mins*60*1000);
     pendingSchoolPause=null;
-    save();toast('⏱ Timer running — check in again in '+mins+' min!');render();
+    if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
+    save();toast('⏱ Continuing for '+mins+' min — good luck!');render();
   }
   else if(a==='school-pause-stop'){
+    const sc=child(el.dataset.cid);
+    // Clear popup freeze before stopping so elapsed time is correct
+    if(sc?.timer?.popupPausedAt){
+      const frozenMs=Date.now()-sc.timer.popupPausedAt;
+      sc.timer.startedAt+=frozenMs;
+      delete sc.timer.popupPausedAt;
+    }
+    if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
     pendingSchoolPause=null;
     stopSchoolSession(el.dataset.cid);
   }
