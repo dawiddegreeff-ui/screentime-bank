@@ -1083,7 +1083,18 @@ function startTick(){
         if(!c.timer||c.timer.sessionType!=='school')return;
         if(c.timer.paused)return; // don't fire goal popup while paused
         if(view!=='child'||childId!==c.id)return; // only for currently viewed child
-        const sts=getSchoolTimerState(c.id);if(!sts||!sts.goalMet)return;
+        const sts=getSchoolTimerState(c.id);
+        // Check weekly goal first (lower priority — only fires if daily goal not triggering)
+        if(sts&&sts.weekGoalMet&&!sts.goalMet&&!c.timer.weekGoalPauseShownAt&&!c.timer.snoozeUntil){
+          c.timer.weekGoalPauseShownAt=Date.now();
+          c.timer.popupPausedAt=Date.now();
+          pendingSchoolPause={cid:c.id,autoStopAt:Date.now()+2*60*1000,isWeeklyGoal:true};
+          playTimerEnd();
+          if(chimeInterval)clearInterval(chimeInterval);
+          chimeInterval=setInterval(()=>{if(pendingSchoolPause)playTimerEnd();else{clearInterval(chimeInterval);chimeInterval=null;}},30000);
+          save();render();return;
+        }
+        if(!sts||!sts.goalMet)return;
         if(!c.timer.goalPauseShownAt){
           c.timer.goalPauseShownAt=Date.now();
           c.timer.snoozeUntil=null;
@@ -2562,7 +2573,6 @@ function rChild(){
     ${ws.cleanDays>0?`<span style="font-size:.85rem;color:var(--success);font-weight:800">🌿 ${ws.cleanDays}d</span>`:''}
   </div>
   ${welcomeBanner}
-  ${rEncouragementBanner()}
   <div class="balance-hero anim-pop" style="background:${c.bg}">
     <div class="lbl">Points Balance</div><div class="amt">🪙 ${c.points}</div>
     <div class="pts-lbl">${ws.weekPts} pts earned this week</div>
@@ -2610,6 +2620,7 @@ function rChild(){
       <div style="display:flex;gap:10px;flex-wrap:wrap">${bars.join('')}</div>
     </div>`;
   })()}
+  ${rEncouragementBanner()}
   ${rTimerWidget(childId)}
   ${(()=>{
     // Show daily school goal nudge if unlock min is met but daily goal not yet reached
@@ -5404,19 +5415,19 @@ function rSchoolPauseModal(){
   if(!pendingSchoolPause)return'';
   const c=child(pendingSchoolPause.cid);if(!c)return'';
   const sts=getSchoolTimerState(c.id);
-  const bonusMins=sts?Math.floor((sts.bonusSecs||0)/60):0;
+  const isWeekly=pendingSchoolPause.isWeeklyGoal;
+  const bonusMins=sts?Math.floor(((isWeekly?sts.weekBonusSecs:sts.bonusSecs)||0)/60):0;
   const bonusPtsEarned=Math.floor(bonusMins/(D.settings.schoolPointMins||10))*(D.settings.schoolPointAmt||2);
-  // Calculate how many bonus pts each snooze option will earn
   const interval=D.settings.schoolPointMins||10;
   const ptsPerInterval=D.settings.schoolPointAmt||2;
   function snoozeBonus(mins){return Math.floor(mins/interval)*ptsPerInterval;}
   const b15=snoozeBonus(15);const b30=snoozeBonus(30);const b60=snoozeBonus(60);
   return`<div class="bottom-sheet-overlay">
     <div class="bottom-sheet" style="text-align:center">
-      <div style="font-size:3rem;margin-bottom:8px">🎓</div>
-      <h3 style="margin-bottom:4px">Daily goal reached, ${c.name}!</h3>
+      <div style="font-size:3rem;margin-bottom:8px">${isWeekly?'🏆':'🎓'}</div>
+      <h3 style="margin-bottom:4px">${isWeekly?'Weekly goal reached, '+c.name+'!':'Daily goal reached, '+c.name+'!'}</h3>
       <p style="color:var(--muted);font-size:.85rem;margin-bottom:6px">
-        You completed your school goal!${bonusPtsEarned>0?` You earned <strong style="color:var(--gold)">+${bonusPtsEarned} 🌟 bonus pts</strong> for going the extra mile!`:''}
+        ${isWeekly?'You completed your weekly school goal! 🎉':'You completed your school goal!'}${bonusPtsEarned>0?` You earned <strong style="color:var(--gold)">+${bonusPtsEarned} 🌟 bonus pts</strong> for going the extra mile!`:''}
       </p>
       <p style="color:var(--muted);font-size:.82rem;margin-bottom:4px">Want to keep going for more bonus points?</p>
       <div style="font-size:.75rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:6px 10px;margin-bottom:14px;color:var(--muted)">
@@ -7080,7 +7091,10 @@ document.addEventListener('click',e=>{
     pendingPostRec=null;render();
   }
   else if(a==='pick-school-direct'){
-    startSessionWithType(el.dataset.cid,'school');
+    const scid=el.dataset.cid;
+    startSessionWithType(scid,'school');
+    navStack=[];view='child';childId=scid;
+    render();
   }
   else if(a==='open-fresh-start'){
     pendingFreshStart={step:'pin',pin:''};render();
