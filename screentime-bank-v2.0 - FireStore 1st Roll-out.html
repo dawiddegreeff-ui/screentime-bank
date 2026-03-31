@@ -874,9 +874,21 @@ function getSchoolTimerState(cid){
   const dailyRemainSecs=dailyGoal>0?Math.max(0,Math.floor((dailyGoal*60)-(totalTodayMins*60))):null;
   const goalMet=dailyGoal>0&&totalTodayMins>=dailyGoal;
   // Bonus timer: only counts up AFTER goal is met
-  // Subtract time spent showing the popup so bonus doesn't accumulate while child decides
-  const popupFreezeMs=c.timer?.popupPausedAt?(Date.now()-c.timer.popupPausedAt):0;
-  const bonusSecs=goalMet?Math.max(0,Math.floor((totalTodayMins-dailyGoal)*60-(popupFreezeMs/1000))):0;
+  // Freeze bonus at goal-met moment (set when goal first detected in tick)
+  // This prevents bonus accumulating while waiting for popup or while another child's popup is showing
+  const frozenAt=c.timer?.goalFrozenAt;
+  const popupPausedAt=c.timer?.popupPausedAt;
+  let bonusSecs=0;
+  if(goalMet){
+    if(frozenAt){
+      // Use frozen timestamp — bonus only counts up to when goal was frozen
+      const frozenElapsed=(frozenAt-c.timer.startedAt)/60000;
+      bonusSecs=Math.max(0,Math.floor((frozenElapsed-(c.schoolDailyAccumDate===new Date().toISOString().split('T')[0]?(c.schoolDailyAccum||0):0)-dailyGoal)*60));
+    } else {
+      const popupFreezeMs=popupPausedAt?(Date.now()-popupPausedAt):0;
+      bonusSecs=Math.max(0,Math.floor((totalTodayMins-dailyGoal)*60-(popupFreezeMs/1000)));
+    }
+  }
   const dailyPct=dailyGoal>0?Math.min(1,totalTodayMins/dailyGoal):Math.min(1,sessionMins/60);
   // Weekly
   const weekRemainSecs=weekGoal>0?Math.max(0,Math.floor((weekGoal*60)-(weekDone*60))):null;
@@ -1042,13 +1054,17 @@ function startTick(){
     if(D&&D.children&&!pendingActivityPause&&!pendingSchoolPause){
       D.children.forEach(c=>{
         if(!c.timer||c.timer.sessionType!=='activity')return;
-        if(view!=='child'||childId!==c.id)return; // only for currently viewed child
         const ats=getActivityTimerState(c);if(!ats||!ats.goalMet)return;
         if(!c.timer.goalPauseShownAt){
           c.timer.goalPauseShownAt=Date.now();
           c.timer.snoozeUntil=null;
           pendingActivityPause={cid:c.id,activityId:c.timer.activityId,autoStopAt:Date.now()+2*60*1000};
-          playTimerEnd();
+          // Only show popup if this child is currently on screen — otherwise badge + chime alerts them
+          if(view==='child'&&childId===c.id){
+            playTimerEnd();
+          } else {
+            playTimerEnd(); // chime always plays regardless of screen
+          }
           // Start repeating chime every 30s until dismissed
           if(chimeInterval)clearInterval(chimeInterval);
           chimeInterval=setInterval(()=>{if(pendingActivityPause){playTimerEnd();}else{clearInterval(chimeInterval);chimeInterval=null;}},30000);
@@ -1082,7 +1098,6 @@ function startTick(){
       D.children.forEach(c=>{
         if(!c.timer||c.timer.sessionType!=='school')return;
         if(c.timer.paused)return; // don't fire goal popup while paused
-        if(view!=='child'||childId!==c.id)return; // only for currently viewed child
         const sts=getSchoolTimerState(c.id);
         // Check weekly goal first (lower priority — only fires if daily goal not triggering)
         if(sts&&sts.weekGoalMet&&!sts.goalMet&&!c.timer.weekGoalPauseShownAt&&!c.timer.snoozeUntil){
@@ -1095,6 +1110,8 @@ function startTick(){
           save();render();return;
         }
         if(!sts||!sts.goalMet)return;
+        // Freeze bonus the MOMENT goal is detected — before popup fires
+        if(!c.timer.goalFrozenAt)c.timer.goalFrozenAt=Date.now();
         if(!c.timer.goalPauseShownAt){
           c.timer.goalPauseShownAt=Date.now();
           c.timer.snoozeUntil=null;
@@ -1120,7 +1137,6 @@ function startTick(){
     if(D&&D.children&&!pendingRecWarning){
       D.children.forEach(c=>{
         if(!c.timer||c.timer.sessionType!=='recreation')return;
-        if(view!=='child'||childId!==c.id)return;
         const ts=getTimerState(c);
         if(!ts||!ts.isOvertime)return;
         const overSecs=Math.abs(ts.secsRemaining);
@@ -2197,6 +2213,15 @@ function rLoading(){return`<div class="loading-screen anim-pop"><div class="spin
 // ── HOME ──────────────────────────────
 function rHome(){
   const ap=allPending().length+allUnlockPending().length;
+  const goalKids=(D.children||[]).filter(c=>c.timer?.goalFrozenAt&&!pendingSchoolPause&&!pendingActivityPause);
+  const goalBanner=goalKids.length?`<div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);border-radius:12px;padding:10px 14px;margin:6px 14px;display:flex;align-items:center;gap:10px;cursor:pointer" data-a="go-child" data-cid="${goalKids[0].id}">
+    <div style="font-size:1.5rem">⏰</div>
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:.88rem">School goal reached!</div>
+      <div style="font-size:.78rem;color:var(--muted)">${goalKids.map(c=>c.name).join(', ')} — tap to respond</div>
+    </div>
+    <div style="font-size:1rem">→</div>
+  </div>`:'';
   const cards=D.children.map(c=>{
     const pend=pending4(c.id);
     const ts=getTimerState(c);
@@ -2205,7 +2230,7 @@ function rHome(){
     const badges=[];
     if(pend.length)badges.push(`<span class="badge-pill badge-pending">${pend.length} pending</span>`);
     if(allUnlockPending().filter(u=>u.childId===c.id).length)badges.push(`<span class="badge-pill badge-unlock">🔓 unlock req</span>`);
-    if(ts)badges.push(`<span class="badge-pill ${ts.isOvertime?'badge-timer-ot':'badge-timer-active'}" data-timer-badge="${c.id}">${ts.isOvertime?'⚠️ -':'▶ '}${fmtSecs(ts.secsRemaining)}</span>`);
+    if(ts)badges.push(`<span class="badge-pill ${ts.isOvertime?'badge-timer-ot':c.timer?.goalFrozenAt?'badge-timer-ot':'badge-timer-active'}" data-timer-badge="${c.id}">${ts.isOvertime?'⚠️ -':c.timer?.goalFrozenAt?'⏰ goal! ':'▶ '}${fmtSecs(ts.secsRemaining)}</span>`);
     if(ws.cleanDays>0&&!ts?.isOvertime)badges.push(`<span class="badge-pill badge-steward">🌿 ${ws.cleanDays}d</span>`);
     const bal=checkDailyBalance(c.id);
     if(bal.configured){
@@ -2262,7 +2287,7 @@ function rLeaderboard(){
   const weekKey=ws.toISOString().split('T')[0];
   const lb=D.settings.leaderboard||{prize1:20,prize2:10,prize3:5,participation:3,targetPct:70};
   const winnerAlreadyAwarded=stats.length&&stats[0].c.weeklyWinnerBonusDate===weekKey;
-  return`<div class="header">
+  return goalBanner+`<div class="header">
     <button class="back-btn" data-a="go-back">←</button>
     <h2>🏆 Leaderboard</h2>
   </div>
@@ -5241,6 +5266,7 @@ function rOnboardingModal(){
 }
 function rRecWarningModal(){
   if(!pendingRecWarning)return'';
+  if(view==='child'&&childId!==pendingRecWarning.cid)return'';
   const{cid,warningStartedAt}=pendingRecWarning;
   const c=child(cid);if(!c)return'';
   const strikes=c.recStrikes||0;
@@ -5336,7 +5362,8 @@ function rActivityConfirmModal(){
 }
 function rActivityPauseModal(){
   if(!pendingActivityPause)return'';
-  const c=child(pendingActivityPause.cid);if(!c)return'';
+  const c=child(pendingActivityPause.cid);
+  if(view==='child'&&childId!==pendingActivityPause.cid)return'';if(!c)return'';
   const act=D.activities.find(a=>a.id===pendingActivityPause.activityId);if(!act)return'';
   const ats=getActivityTimerState(c);
   const bonusMins=ats?Math.floor((ats.bonusSecs||0)/60):0;
@@ -5414,6 +5441,8 @@ function rSchoolPauseReasonModal(){
 function rSchoolPauseModal(){
   if(!pendingSchoolPause)return'';
   const c=child(pendingSchoolPause.cid);if(!c)return'';
+  // Only show popup if we're on this child's screen or home screen
+  if(view==='child'&&childId!==pendingSchoolPause.cid)return'';
   const sts=getSchoolTimerState(c.id);
   const isWeekly=pendingSchoolPause.isWeeklyGoal;
   const bonusMins=sts?Math.floor(((isWeekly?sts.weekBonusSecs:sts.bonusSecs)||0)/60):0;
@@ -6077,7 +6106,27 @@ document.addEventListener('click',e=>{
     else{view='home';childId=null;}
     filterCat='all';editMode={type:null,id:null};render();
   }
-  else if(a==='go-child'){push();childId=el.dataset.cid||childId;view='child';render();}
+  else if(a==='go-child'){
+    push();childId=el.dataset.cid||childId;view='child';
+    // If this child has a frozen goal waiting, show popup now
+    const gc=child(childId);
+    if(gc?.timer?.goalFrozenAt&&!pendingSchoolPause&&!pendingActivityPause){
+      if(gc.timer.sessionType==='school'){
+        if(!gc.timer.goalPauseShownAt){
+          gc.timer.goalPauseShownAt=Date.now();
+          gc.timer.snoozeUntil=null;
+          gc.timer.popupPausedAt=Date.now();
+          pendingSchoolPause={cid:childId,autoStopAt:Date.now()+2*60*1000};
+        }
+      } else if(gc.timer.sessionType==='activity'){
+        if(!gc.timer.goalPauseShownAt){
+          gc.timer.goalPauseShownAt=Date.now();
+          pendingActivityPause={cid:childId,activityId:gc.timer.activityId,autoStopAt:Date.now()+2*60*1000};
+        }
+      }
+    }
+    render();
+  }
   else if(a==='go-log'){
     const c=child(childId||el.dataset.cid);
     if(c?.timer?.sessionType==='school'){toast('📚 Finish your school session before logging activities');return;}
@@ -6325,9 +6374,12 @@ document.addEventListener('click',e=>{
     // Adjust timer startedAt to account for frozen time during popup
     if(c.timer.popupPausedAt){
       const frozenMs=Date.now()-c.timer.popupPausedAt;
-      c.timer.startedAt+=frozenMs; // push start forward = subtract frozen time from elapsed
+      c.timer.startedAt+=frozenMs;
       delete c.timer.popupPausedAt;
     }
+    // Clear freeze so bonus accumulates again during the snooze
+    delete c.timer.goalFrozenAt;
+    c.timer.goalPauseShownAt=null; // allow re-trigger at next snooze expiry
     c.timer.snoozeUntil=Date.now()+(mins*60*1000);
     pendingSchoolPause=null;
     if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
