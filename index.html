@@ -891,7 +891,10 @@ function getSchoolTimerState(cid){
   const goalMet=dailyGoal>0&&totalTodayMins>=dailyGoal;
   const minDay=c.schoolMinDay||0;
   const minimumMet=minDay>0&&totalTodayMins>=minDay;
-  const minimumJustMet=minimumMet&&!c.timer?.minimumNotified;
+  // Only "just met" if minimum was NOT already met at session start
+  const alreadyDoneAtStart=c.timer?.alreadyDoneAtStart||0;
+  const minimumWasAlreadyMet=minDay>0&&alreadyDoneAtStart>=minDay;
+  const minimumJustMet=minimumMet&&!minimumWasAlreadyMet&&!c.timer?.minimumNotified;
   // Bonus timer: only counts up AFTER goal is met
   // Freeze bonus at goal-met moment (set when goal first detected in tick)
   // This prevents bonus accumulating while waiting for popup or while another child's popup is showing
@@ -1114,6 +1117,18 @@ function startTick(){
       }
     }
         // ── SCHOOL GOAL PAUSE CHECK ──────────────────────────────────────
+    // Pass 1: freeze bonus timer for ALL children whose goal is met (no popup guard)
+    if(D&&D.children){
+      D.children.forEach(c=>{
+        if(!c.timer||c.timer.sessionType!=='school'||c.timer.paused)return;
+        const sts=getSchoolTimerState(c.id);
+        if(sts&&sts.goalMet&&!c.timer.goalFrozenAt){
+          c.timer.goalFrozenAt=Date.now();
+          save();
+        }
+      });
+    }
+    // Pass 2: fire popup for ONE child at a time
     if(D&&D.children&&!pendingSchoolPause){
       D.children.forEach(c=>{
         if(!c.timer||c.timer.sessionType!=='school')return;
@@ -1132,17 +1147,16 @@ function startTick(){
         // Check minimum school time reached — pause timer and show popup
         if(sts&&sts.minimumMet&&!c.timer.minimumNotified&&!pendingSchoolMinimum&&!pendingSchoolPause){
           c.timer.minimumNotified=true;
+          c.timer.minimumPendingResponse=true; // flag so go-child can show popup
           c.timer.popupPausedAt=Date.now();
           pendingSchoolMinimum={cid:c.id,autoStopAt:Date.now()+2*60*1000};
-          if(view!=='child'||childId!==c.id){/* badge shows on home */}
           playTimerEnd();
           if(chimeInterval)clearInterval(chimeInterval);
           chimeInterval=setInterval(()=>{if(pendingSchoolMinimum)playTimerEnd();else{clearInterval(chimeInterval);chimeInterval=null;}},30000);
           save();render();
         }
         if(!sts||!sts.goalMet)return;
-        // Freeze bonus the MOMENT goal is detected — before popup fires
-        if(!c.timer.goalFrozenAt)c.timer.goalFrozenAt=Date.now();
+        // goalFrozenAt already set in pass 1 above
         if(!c.timer.goalPauseShownAt){
           c.timer.goalPauseShownAt=Date.now();
           c.timer.snoozeUntil=null;
@@ -1572,7 +1586,10 @@ function startSessionWithType(cid,sessionType){
     const alreadyDone=c.schoolDailyAccumDate===today?(c.schoolDailyAccum||0):0;
     const dailyGoalMins=c.schoolDailyGoal||0;
     const remaining=dailyGoalMins>0?Math.max(1,dailyGoalMins-alreadyDone):480; // 8hr fallback if no goal
-    c.timer={startedAt:Date.now(),totalMs:remaining*60000,label:'School session',sessionType:'school',dailyGoalAtStart:dailyGoalMins,alreadyDoneAtStart:alreadyDone,goalPauseShownAt:null,snoozeUntil:null,minimumNotified:false};
+    const minDay=c.schoolMinDay||0;
+    // If minimum was already met before this session, skip the popup
+    const minimumAlreadyMet=minDay>0&&alreadyDone>=minDay;
+    c.timer={startedAt:Date.now(),totalMs:remaining*60000,label:'School session',sessionType:'school',dailyGoalAtStart:dailyGoalMins,alreadyDoneAtStart:alreadyDone,goalPauseShownAt:null,snoozeUntil:null,minimumNotified:minimumAlreadyMet};
     pendingSchoolPause=null;
     save();toast('🎓 School session started!');
     // Show encouragement — this replaces the welcome banner naturally
@@ -6234,7 +6251,7 @@ document.addEventListener('click',e=>{
     // If this child has a frozen goal waiting, show popup now
     const gc=child(childId);
     // Also show minimum modal if pending for this child
-    if(gc?.timer?.minimumNotified&&gc.timer.popupPausedAt&&!pendingSchoolMinimum&&!pendingSchoolPause){
+    if(gc?.timer?.minimumPendingResponse&&!pendingSchoolMinimum&&!pendingSchoolPause){
       pendingSchoolMinimum={cid:childId,autoStopAt:Date.now()+2*60*1000};
     }
     if(gc?.timer?.goalFrozenAt&&!pendingSchoolPause&&!pendingActivityPause&&!pendingSchoolMinimum){
@@ -6437,7 +6454,6 @@ document.addEventListener('click',e=>{
     clearRecStrikes(cid);
   }
   else if(a==='school-minimum-continue'){
-    // Child wants to keep doing school — snooze by chosen time
     const cid=el.dataset.cid;const c=child(cid);if(!c||!c.timer)return;
     const customEl=document.getElementById('school-min-custom');
     const mins=customEl&&parseInt(customEl.value)>0?parseInt(customEl.value):parseInt(el.dataset.mins)||15;
@@ -6446,15 +6462,16 @@ document.addEventListener('click',e=>{
       c.timer.startedAt+=fm;
       delete c.timer.popupPausedAt;
     }
+    delete c.timer.minimumPendingResponse;
     c.timer.snoozeUntil=Date.now()+(mins*60*1000);
     if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
     pendingSchoolMinimum=null;
     save();toast('📚 Continuing school for '+mins+' min — great dedication!');render();
   }
   else if(a==='school-minimum-stop'){
-    // Child wants a break — stop the school timer
     const cid=el.dataset.cid;const c=child(cid);
     if(c?.timer?.popupPausedAt){const fm=Date.now()-c.timer.popupPausedAt;c.timer.startedAt+=fm;delete c.timer.popupPausedAt;}
+    if(c?.timer)delete c.timer.minimumPendingResponse;
     if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
     pendingSchoolMinimum=null;
     stopSchoolSession(cid);
