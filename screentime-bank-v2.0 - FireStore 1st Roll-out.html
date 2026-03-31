@@ -385,6 +385,8 @@ async function signIn(){
   try{
     const {GoogleAuthProvider,signInWithPopup}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
     const provider=new GoogleAuthProvider();
+    // Always show account picker — even if already signed in
+    provider.setCustomParameters({prompt:'select_account'});
     await signInWithPopup(fbAuth,provider);
     // onAuthStateChanged will handle the rest
   }catch(e){
@@ -4947,6 +4949,27 @@ function rFreshStartModal(){
     </div>`;
   }
 
+  if(step==='choose'){
+    return`<div class="overlay">
+      <div class="modal-box" style="max-width:320px;text-align:center">
+        <span class="cion">🔄</span>
+        <h3 style="margin-bottom:8px">What would you like to do?</h3>
+        <p style="font-size:.83rem;color:var(--muted);margin-bottom:18px">Choose how to reset your family data</p>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+          <button class="btn btn-ghost" style="padding:14px;text-align:left;border-radius:14px" data-a="fresh-start-goto" data-step="setup">
+            <div style="font-weight:800;margin-bottom:3px">🔄 Reset Children's Data</div>
+            <div style="font-size:.78rem;color:var(--muted)">Keep your children's names & settings — just clear points, timers, wallet and history</div>
+          </button>
+          <button class="btn btn-danger" style="padding:14px;text-align:left;border-radius:14px" data-a="fresh-start-goto" data-step="wizard">
+            <div style="font-weight:800;margin-bottom:3px">✨ Full Setup Wizard</div>
+            <div style="font-size:.78rem;color:rgba(255,255,255,.7)">Start completely from scratch — re-enter all children names, ages and settings</div>
+          </button>
+        </div>
+        <button class="btn btn-ghost btn-full" data-a="close-fresh-start">Cancel</button>
+      </div>
+    </div>`;
+  }
+
   if(step==='setup'){
     const children=D.children;
     return`<div class="overlay" style="overflow-y:auto">
@@ -6192,8 +6215,8 @@ document.addEventListener('click',e=>{
     }
     pendingOnboarding=null;
     save(true);
-    toast('🎉 Welcome to ScreenTime Bank, '+D.children[0].name+'!');
-    render();
+    toast('🎉 Welcome! Tap a child to get started.');
+    view='home';childId=null;render();
   }
   else if(a==='rec-warning-stop'){
     const cid=el.dataset.cid;
@@ -7034,13 +7057,24 @@ document.addEventListener('click',e=>{
     else if((pendingFreshStart.pin||'').length<4){pendingFreshStart.pin=(pendingFreshStart.pin||'')+d;}
     if((pendingFreshStart.pin||'').length===4){
       if(pendingFreshStart.pin===D.settings.pin){
-        pendingFreshStart={step:'setup',pin:pendingFreshStart.pin};
+        pendingFreshStart={step:'choose',pin:pendingFreshStart.pin};
       } else {
         pendingFreshStart.pin='';
         toast('❌ Incorrect PIN');
       }
     }
     render();
+  }
+  else if(a==='fresh-start-goto'){
+    const s=el.dataset.step;
+    if(s==='wizard'){
+      // Full wizard — close fresh start, launch onboarding
+      pendingFreshStart=null;
+      pendingOnboarding={step:'welcome',pin:'',numChildren:null,kids:[]};
+      render();
+    } else {
+      pendingFreshStart.step=s;render();
+    }
   }
   else if(a==='close-fresh-start'){
     pendingFreshStart=null;render();
@@ -7074,9 +7108,9 @@ document.addEventListener('click',e=>{
     });
     D.log=[];D.pendingUnlocks=[];D.dailyReports=[];
       pendingFreshStart=null;
-    // Trigger onboarding wizard so parent can re-setup children
-    pendingOnboarding={step:'welcome',pin:'',numChildren:null,kids:[]};
-    save(true);toast('🔄 Fresh start complete — let\'s set up your children!');render();
+    save(true);
+    toast('✅ Children\'s data reset! Points, timers and history cleared.');
+    view='home';childId=null;render();
   }
   else if(a==='reset-leaderboard-bonus'){
     D.children.forEach(c=>{c.weeklyWinnerBonusDate='';});
