@@ -3032,7 +3032,9 @@ function rPin(){
     <p style="color:var(--muted)">Enter your PIN to continue</p>
     <div class="pin-dots">${dots}</div>
     <div class="numpad">
-      ${[1,2,3,4,5,6,7,8,9].map(n=>`<button class="num-btn" data-a="pin" data-d="${n}">${n}</button>`).join('')}
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto">
+        ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(d=>d===''?'<div></div>':`<button class="num-btn" data-a="pin" data-d="${d}" style="width:100%;aspect-ratio:1;font-size:1.4rem">${d}</button>`).join('')}
+      </div>
       <button class="num-btn" data-a="pin-del" style="font-size:1rem">⌫</button>
       <button class="num-btn zero" data-a="pin" data-d="0">0</button>
     </div>
@@ -5016,8 +5018,8 @@ function rFreshStartModal(){
         <p style="font-size:.85rem;color:var(--muted);margin-bottom:16px;text-align:center">
           This will <strong style="color:var(--danger)">reset all data</strong> for all children and configure the app from scratch.<br><br>Enter your PIN to continue.
         </p>
-        <div style="display:flex;gap:6px;justify-content:center;margin-bottom:16px">
-          ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(d=>d===''?'<div style="width:56px"></div>':`<button class="btn btn-ghost" style="width:56px;height:56px;font-size:1.2rem;font-weight:800;border-radius:12px" data-a="fresh-start-pin-digit" data-d="${d}">${d}</button>`).join('')}
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:220px;margin:0 auto 16px">
+          ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(d=>d===''?'<div></div>':`<button class="btn btn-ghost" style="aspect-ratio:1;font-size:1.3rem;font-weight:800;border-radius:12px" data-a="fresh-start-pin-digit" data-d="${d}">${d}</button>`).join('')}
         </div>
         <div style="text-align:center;margin-bottom:12px">
           <span style="font-size:1.5rem;letter-spacing:8px">${'●'.repeat(pendingFreshStart.pin?.length||0)+'○'.repeat(4-(pendingFreshStart.pin?.length||0))}</span>
@@ -5231,8 +5233,8 @@ function rOnboardingModal(){
         <span class="cion">🔒</span>
         <h3 style="margin-bottom:6px">Set Your Parent PIN</h3>
         <p style="color:var(--muted);font-size:.85rem;margin-bottom:16px">This PIN protects parent settings</p>
-        <div style="display:flex;gap:6px;justify-content:center;margin-bottom:16px;flex-wrap:wrap">
-          ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(d=>d===''?'<div style="width:56px"></div>':`<button class="btn btn-ghost" style="width:56px;height:56px;font-size:1.2rem;font-weight:800;border-radius:12px" data-a="onboard-pin-digit" data-d="${d}">${d}</button>`).join('')}
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:220px;margin:0 auto 16px">
+          ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(d=>d===''?'<div></div>':`<button class="btn btn-ghost" style="aspect-ratio:1;font-size:1.3rem;font-weight:800;border-radius:12px" data-a="onboard-pin-digit" data-d="${d}">${d}</button>`).join('')}
         </div>
         <div style="text-align:center;margin-bottom:16px">
           <span style="font-size:1.5rem;letter-spacing:8px">${'●'.repeat(pendingOnboarding.pin?.length||0)+'○'.repeat(4-(pendingOnboarding.pin?.length||0))}</span>
