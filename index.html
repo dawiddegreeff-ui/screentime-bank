@@ -956,7 +956,7 @@ function startTick(){
       const c=child(el.dataset.timerCid);if(!c||!c.timer)return;
       // School: use compound state
       if(c.timer.sessionType==='school'){
-        if(c.timer.paused)return; // frozen while paused
+        if(c.timer.paused||c.timer.popupPausedAt)return; // frozen while paused or popup showing
         const sts=getSchoolTimerState(c.id);if(!sts)return;
         const mainEl=el.querySelector('[data-school-main]');
         const bonusEl=el.querySelector('[data-school-bonus]');
@@ -1001,7 +1001,7 @@ function startTick(){
     document.querySelectorAll('[data-timer-badge]').forEach(el=>{
       const c=child(el.dataset.timerBadge);if(!c||!c.timer)return;
       if(c.timer.sessionType==='school'){
-        if(c.timer.paused)return; // frozen while paused
+        if(c.timer.paused||c.timer.popupPausedAt)return; // frozen while paused or popup showing
         const sts=getSchoolTimerState(c.id);if(!sts)return;
         if(sts.goalMet){
           el.textContent='🌟 +'+fmtSecs(sts.bonusSecs);
@@ -1025,6 +1025,7 @@ function startTick(){
       const pts=D.settings.schoolPointAmt||2;
       D.children.forEach(c=>{
         if(!c.timer||c.timer.sessionType!=='school')return;
+        if(c.timer.popupPausedAt||c.timer.paused)return; // don't award while frozen
         const elapsed=Date.now()-c.timer.startedAt;
         const lastAwarded=c.timer.lastSchoolAward||0;
         const intervals=Math.floor(elapsed/intervalMs);
@@ -1587,6 +1588,9 @@ function startSessionWithType(cid,sessionType){
       toast('Stopping recreation session to start school 🎓');c.timer=null;
     }
     if(c.timer&&c.timer.sessionType==='school'){toast('School session already running!');return;}
+    // Clear any leftover popup state from previous session
+    if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
+    pendingSchoolMinimum=null;
     // School timer runs down to the daily goal, then stops (bonus is separate)
     const today=new Date().toISOString().split('T')[0];
     const alreadyDone=c.schoolDailyAccumDate===today?(c.schoolDailyAccum||0):0;
@@ -6456,9 +6460,7 @@ document.addEventListener('click',e=>{
     clearRecStrikes(cid);
   }
   else if(a==='school-minimum-continue'){
-    // Log the minimum session to parent, then start a fresh timer for remaining daily goal
     const cid=el.dataset.cid;const c=child(cid);if(!c||!c.timer)return;
-    // Unfreeze popup time so elapsed is correct
     if(c.timer.popupPausedAt){
       const fm=Date.now()-c.timer.popupPausedAt;
       c.timer.startedAt+=fm;
@@ -6467,15 +6469,10 @@ document.addEventListener('click',e=>{
     delete c.timer.minimumPendingResponse;
     if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
     pendingSchoolMinimum=null;
-    // Stop current session — logs minimum mins to parent for approval
+    // Stop session — subject picker will appear
+    // Flag tells subject picker to start a new timer after logging
     stopSchoolSession(cid);
-    // After stop, start a fresh timer for remaining daily goal (voluntary bonus time)
-    // Small delay to let stopSchoolSession complete
-    setTimeout(()=>{
-      startSessionWithType(cid,'school');
-      toast('📚 Minimum logged! New timer started for additional school time 🌟');
-      render();
-    },200);
+    if(pendingPostSchool)pendingPostSchool.continueAfterLog=true;
   }
   else if(a==='school-minimum-stop'){
     // Log the minimum session to parent and stop — child can take a break
@@ -7007,9 +7004,14 @@ document.addEventListener('click',e=>{
     if(el.dataset.group==='school'&&pendingPostSchool&&el.classList.contains('active')){
       const chips=[...document.querySelectorAll('[data-group="school"].active')].map(b=>b.textContent);
       const cid=pendingPostSchool.cid;
+      const continueAfter=pendingPostSchool.continueAfterLog;
       logSchoolSession(cid,pendingPostSchool.durationMins,chips);
       pendingPostSchool=null;
       setTimeout(()=>triggerWellness(cid,'school-timer-stop'),400);
+      if(continueAfter){
+        startSessionWithType(cid,'school');
+        toast('📚 Minimum logged! Starting bonus school timer 🌟');
+      }
       render();
     }
     // Auto-submit rec session immediately when an activity is selected
