@@ -873,6 +873,9 @@ function getSchoolTimerState(cid){
   // Main timer: counts down remaining goal time (capped at 0 — never goes negative)
   const dailyRemainSecs=dailyGoal>0?Math.max(0,Math.floor((dailyGoal*60)-(totalTodayMins*60))):null;
   const goalMet=dailyGoal>0&&totalTodayMins>=dailyGoal;
+  const minDay=c.schoolMinDay||0;
+  const minimumMet=minDay>0&&totalTodayMins>=minDay;
+  const minimumJustMet=minimumMet&&!c.timer?.minimumNotified;
   // Bonus timer: only counts up AFTER goal is met
   // Freeze bonus at goal-met moment (set when goal first detected in tick)
   // This prevents bonus accumulating while waiting for popup or while another child's popup is showing
@@ -901,6 +904,7 @@ function getSchoolTimerState(cid){
     dailyGoal,
     dailyRemainSecs,    // null if no goal; 0 when met — never negative
     goalMet,
+    minimumMet,minimumJustMet,minDay,
     bonusSecs,          // counts up after goal met
     dailyPct,
     weekGoal,
@@ -1108,6 +1112,16 @@ function startTick(){
           if(chimeInterval)clearInterval(chimeInterval);
           chimeInterval=setInterval(()=>{if(pendingSchoolPause)playTimerEnd();else{clearInterval(chimeInterval);chimeInterval=null;}},30000);
           save();render();return;
+        }
+        // Check minimum school time reached — show encouragement notification
+        if(sts&&sts.minimumJustMet&&!c.timer.minimumNotified){
+          c.timer.minimumNotified=true;
+          encouragementBanners[c.id]={
+            emoji:'✅',
+            msg:`Minimum school done (${sts.minDay} min)! You can take a screen break 🎮 — but keep going for your daily goal!`
+          };
+          playChime();
+          save();render();
         }
         if(!sts||!sts.goalMet)return;
         // Freeze bonus the MOMENT goal is detected — before popup fires
@@ -1528,7 +1542,7 @@ function startSessionWithType(cid,sessionType){
     const alreadyDone=c.schoolDailyAccumDate===today?(c.schoolDailyAccum||0):0;
     const dailyGoalMins=c.schoolDailyGoal||0;
     const remaining=dailyGoalMins>0?Math.max(1,dailyGoalMins-alreadyDone):480; // 8hr fallback if no goal
-    c.timer={startedAt:Date.now(),totalMs:remaining*60000,label:'School session',sessionType:'school',dailyGoalAtStart:dailyGoalMins,alreadyDoneAtStart:alreadyDone,goalPauseShownAt:null,snoozeUntil:null};
+    c.timer={startedAt:Date.now(),totalMs:remaining*60000,label:'School session',sessionType:'school',dailyGoalAtStart:dailyGoalMins,alreadyDoneAtStart:alreadyDone,goalPauseShownAt:null,snoozeUntil:null,minimumNotified:false};
     pendingSchoolPause=null;
     save();toast('🎓 School session started!');
     // Show encouragement — this replaces the welcome banner naturally
@@ -2340,7 +2354,17 @@ function rTimerWidget(cid){
       subText=`Session: ${fmtSecs(sts.sessionSecs)}`;
     }else if(!sts.goalMet){
       mainLabel='🎓 DAILY GOAL';mainSecs=sts.dailyRemainSecs;mainColor='#60A5FA';mainIcon='🎓';
-      subText=`Today: ${Math.round(sts.totalTodayMins)} min done · Goal: ${sts.dailyGoal} min`;
+      // Show minimum threshold progress if not yet reached
+      const minDay=c.schoolMinDay||0;
+      const doneMins=Math.round(sts.totalTodayMins);
+      if(minDay>0&&!sts.minimumMet){
+        const minRemain=Math.max(0,minDay-doneMins);
+        subText=`🔑 Min: ${minRemain} min left · Goal: ${sts.dailyGoal} min`;
+      } else if(minDay>0&&sts.minimumMet){
+        subText=`✅ Min done · ${doneMins} of ${sts.dailyGoal} min · keep going!`;
+      } else {
+        subText=`Today: ${doneMins} min done · Goal: ${sts.dailyGoal} min`;
+      }
     }else{
       mainLabel='✅ DAILY GOAL MET!';mainSecs=0;mainColor='var(--success)';mainIcon='✅';
       subText=`${sts.dailyGoal} min completed today 🎉`;
@@ -2422,9 +2446,18 @@ function rTimerWidget(cid){
   }
   // Recreation timer
   const ts=getTimerState(c);if(!ts)return'';
+  // School reminder banner — show if rec timer running and daily goal not met
+  const todayMins=getDailySchoolMins(c.id);
+  const dailyGoalMins=c.schoolDailyGoal||0;
+  const goalStillNeeded=dailyGoalMins>0&&todayMins<dailyGoalMins;
+  const goalNeededMins=Math.max(0,dailyGoalMins-Math.round(todayMins));
+  const schoolReminderBanner=goalStillNeeded&&ts.sessionType==='recreation'?
+    `<div style="background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.3);border-radius:10px;padding:8px 12px;margin-bottom:8px;font-size:.8rem;text-align:center">
+      📚 <strong style="color:#60A5FA">${goalNeededMins} min of school</strong> still needed today
+    </div>`:'';
   const circ=2*Math.PI*23;const offset=circ*(1-ts.pct);
   const cls=ts.isOvertime?'overtime':'active';
-  return`<div class="timer-widget ${cls} anim-pop" data-timer-cid="${cid}">
+  return schoolReminderBanner+`<div class="timer-widget ${cls} anim-pop" data-timer-cid="${cid}">
     <div style="flex:1;min-width:0">
       <div class="timer-label">${ts.isOvertime?'⚠️ OVERTIME':'🎮 RECREATION'}</div>
       <div class="timer-display">${ts.isOvertime?'-':''}${fmtSecs(ts.secsRemaining)}</div>
@@ -5266,7 +5299,7 @@ function rOnboardingModal(){
 }
 function rRecWarningModal(){
   if(!pendingRecWarning)return'';
-  if(view==='child'&&childId!==pendingRecWarning.cid)return'';
+  if(view!=='child'||childId!==pendingRecWarning.cid)return'';
   const{cid,warningStartedAt}=pendingRecWarning;
   const c=child(cid);if(!c)return'';
   const strikes=c.recStrikes||0;
@@ -5363,7 +5396,7 @@ function rActivityConfirmModal(){
 function rActivityPauseModal(){
   if(!pendingActivityPause)return'';
   const c=child(pendingActivityPause.cid);
-  if(view==='child'&&childId!==pendingActivityPause.cid)return'';if(!c)return'';
+  if(view!=='child'||childId!==pendingActivityPause.cid)return'';if(!c)return'';
   const act=D.activities.find(a=>a.id===pendingActivityPause.activityId);if(!act)return'';
   const ats=getActivityTimerState(c);
   const bonusMins=ats?Math.floor((ats.bonusSecs||0)/60):0;
@@ -5441,8 +5474,8 @@ function rSchoolPauseReasonModal(){
 function rSchoolPauseModal(){
   if(!pendingSchoolPause)return'';
   const c=child(pendingSchoolPause.cid);if(!c)return'';
-  // Only show popup if we're on this child's screen or home screen
-  if(view==='child'&&childId!==pendingSchoolPause.cid)return'';
+  // Only show popup if we're on THIS child's screen — not home, not another child
+  if(view!=='child'||childId!==pendingSchoolPause.cid)return'';
   const sts=getSchoolTimerState(c.id);
   const isWeekly=pendingSchoolPause.isWeeklyGoal;
   const bonusMins=sts?Math.floor(((isWeekly?sts.weekBonusSecs:sts.bonusSecs)||0)/60):0;
