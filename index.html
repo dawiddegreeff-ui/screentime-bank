@@ -370,8 +370,14 @@ function loadLocal(){
 // FIREBASE AUTH & FIRESTORE
 // ═══════════════════════════════════════
 function maybeConnect(){
+  // Only used for offline mode — when signed in, loadFromFirestore handles everything
+  if(fbAuth?.currentUser)return;
   D=migrateData(loadLocal()||clone(DEFAULT_DATA));
-  view='home';syncStatus='offline';checkDailyReset();render();startTick();
+  if(!D.children||D.children.length===0){
+    view='splash';render();
+  } else {
+    view='home';syncStatus='offline';checkDailyReset();render();startTick();
+  }
 }
 
 async function signIn(){
@@ -2091,6 +2097,7 @@ function render(){
   const app=document.getElementById('app');
   let html='';
   if(view==='loading')html=rLoading();
+  else if(view==='splash')html=rSplash();
   else if(view==='home')html=buildSyncBar()+rHome();
   else if(view==='leaderboard')html=rLeaderboard();
   else if(view==='wallet')html=rWallet();
@@ -2131,6 +2138,38 @@ function render(){
   if(pendingGoalMoney)app.insertAdjacentHTML('beforeend',rGoalMoneyModal());
 }
 
+
+function rSplash(){
+  return`<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 20px;text-align:center">
+    <!-- Logo / Branding -->
+    <div style="margin-bottom:24px">
+      <div style="font-size:5rem;margin-bottom:8px">🏦</div>
+      <h1 style="font-size:2.2rem;color:var(--text);margin-bottom:4px">ScreenTime Bank</h1>
+      <div style="font-size:1rem;color:var(--muted);font-weight:600">Rewarding responsible screen time</div>
+    </div>
+
+    <!-- Feature pills -->
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:32px;max-width:320px">
+      ${['🎯 Tasks & Goals','💰 Pocket Money','🏆 Leaderboard','📊 Stewardship','🌿 Wellness','⏱ Screen Timers'].map(f=>
+        `<span style="background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:.78rem;color:var(--muted);font-weight:600">${f}</span>`
+      ).join('')}
+    </div>
+
+    <!-- Sign in card -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:20px;padding:24px;width:100%;max-width:300px;margin-bottom:20px">
+      <div style="font-size:.9rem;font-weight:700;margin-bottom:6px">Family Account</div>
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:18px;line-height:1.5">Sign in with your Google account to access your family dashboard</div>
+      <button class="btn btn-primary btn-full" style="padding:14px;font-size:1rem;border-radius:14px" data-a="sign-in">
+        <span style="margin-right:8px">🔗</span> Sign in with Google
+      </button>
+    </div>
+
+    <div style="font-size:.72rem;color:var(--muted);line-height:1.6;max-width:280px">
+      Your family data is private and secure.<br>
+      Each family has their own isolated account.
+    </div>
+  </div>`;
+}
 function rLoading(){return`<div class="loading-screen anim-pop"><div class="spinner"></div><p style="color:var(--muted);font-weight:700">Connecting…</p></div>`;}
 
 // ── HOME ──────────────────────────────
@@ -7035,7 +7074,9 @@ document.addEventListener('click',e=>{
     });
     D.log=[];D.pendingUnlocks=[];D.dailyReports=[];
       pendingFreshStart=null;
-    save();toast('🎉 Fresh start! All set for the children.');render();
+    // Trigger onboarding wizard so parent can re-setup children
+    pendingOnboarding={step:'welcome',pin:'',numChildren:null,kids:[]};
+    save(true);toast('🔄 Fresh start complete — let\'s set up your children!');render();
   }
   else if(a==='reset-leaderboard-bonus'){
     D.children.forEach(c=>{c.weeklyWinnerBonusDate='';});
@@ -7519,8 +7560,8 @@ window.addEventListener('load',async()=>{
         await loadFromFirestore(user.uid);
       } else {
         if(fbUnsubscribe){fbUnsubscribe();fbUnsubscribe=null;}
-        userEmail='';syncStatus='offline';
-        maybeConnect();
+        D=null;userEmail='';syncStatus='offline';
+        view='splash';render();
         renderSyncBar();
       }
     });
@@ -7532,8 +7573,8 @@ window.addEventListener('load',async()=>{
   }
   setTimeout(()=>{
     if(view==='loading'){
-      D=migrateData(loadLocal()||clone(DEFAULT_DATA));
-      view='home';syncStatus='offline';checkDailyReset();render();startTick();
+      // If Firebase hasn't resolved auth yet, show splash
+      view='splash';render();
     }
   },8000);
 });
