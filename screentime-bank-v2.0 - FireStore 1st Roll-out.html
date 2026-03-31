@@ -1219,10 +1219,11 @@ function startTick(){
       const el=document.getElementById('school-min-countdown');
       if(el)el.textContent=remaining+'s';
       if(Date.now()>=pendingSchoolMinimum.autoStopAt){
-        // Auto-stop — child didn't respond
+        // Auto-stop — child didn't respond, log minimum session
         if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
-        const c=child(pendingSchoolMinimum.cid);
-        if(c?.timer?.popupPausedAt){const fm=Date.now()-c.timer.popupPausedAt;c.timer.startedAt+=fm;delete c.timer.popupPausedAt;}
+        const sc=child(pendingSchoolMinimum.cid);
+        if(sc?.timer?.popupPausedAt){const fm=Date.now()-sc.timer.popupPausedAt;sc.timer.startedAt+=fm;delete sc.timer.popupPausedAt;}
+        if(sc?.timer)delete sc.timer.minimumPendingResponse;
         stopSchoolSession(pendingSchoolMinimum.cid);
         pendingSchoolMinimum=null;render();
       }
@@ -1584,17 +1585,24 @@ function startSessionWithType(cid,sessionType){
     // School timer runs down to the daily goal, then stops (bonus is separate)
     const today=new Date().toISOString().split('T')[0];
     const alreadyDone=c.schoolDailyAccumDate===today?(c.schoolDailyAccum||0):0;
+    // If minimum already met today, this is a voluntary extra session
+    const isExtraSession=(c.schoolMinDay||0)>0&&alreadyDone>=(c.schoolMinDay||0);
     const dailyGoalMins=c.schoolDailyGoal||0;
     const remaining=dailyGoalMins>0?Math.max(1,dailyGoalMins-alreadyDone):480; // 8hr fallback if no goal
     const minDay=c.schoolMinDay||0;
     // If minimum was already met before this session, skip the popup
     const minimumAlreadyMet=minDay>0&&alreadyDone>=minDay;
-    c.timer={startedAt:Date.now(),totalMs:remaining*60000,label:'School session',sessionType:'school',dailyGoalAtStart:dailyGoalMins,alreadyDoneAtStart:alreadyDone,goalPauseShownAt:null,snoozeUntil:null,minimumNotified:minimumAlreadyMet};
+    const sessionLabel=isExtraSession?'Bonus school time ⭐':'School session';
+    c.timer={startedAt:Date.now(),totalMs:remaining*60000,label:sessionLabel,sessionType:'school',
+      dailyGoalAtStart:dailyGoalMins,alreadyDoneAtStart:alreadyDone,
+      goalPauseShownAt:null,snoozeUntil:null,minimumNotified:minimumAlreadyMet,isExtraSession};
     pendingSchoolPause=null;
     save();toast('🎓 School session started!');
     // Show encouragement — this replaces the welcome banner naturally
-    const encMsgs=["You've got this! Study hard 💪","Focus time — you can do it! 🎯","Great choice starting school! 🌟","Deep breath — let's learn something today! 📚"];
-    encouragementBanners[cid]={emoji:'🎓',msg:encMsgs[new Date().getMinutes()%encMsgs.length]};
+    const encMsgs=isExtraSession?
+      ["Amazing! Extra school time earns bonus pts 🌟","Going beyond the minimum — that's dedication! 💪","Extra effort today = more screen time tomorrow 🎮","Bonus time! Every extra min counts toward your weekly goal 📈"]:
+      ["You've got this! Study hard 💪","Focus time — you can do it! 🎯","Great choice starting school! 🌟","Deep breath — let's learn something today! 📚"];
+    encouragementBanners[cid]={emoji:isExtraSession?'⭐':'🎓',msg:encMsgs[new Date().getMinutes()%encMsgs.length]};
     welcomeDismissed[cid]=true; // welcome replaced by encouragement
     render();return;
   }
@@ -2292,7 +2300,9 @@ function rHome(){
     const badges=[];
     if(pend.length)badges.push(`<span class="badge-pill badge-pending">${pend.length} pending</span>`);
     if(allUnlockPending().filter(u=>u.childId===c.id).length)badges.push(`<span class="badge-pill badge-unlock">🔓 unlock req</span>`);
+    const minPending=!ts&&c.timer?.minimumPendingResponse; // timer paused at minimum
     if(ts)badges.push(`<span class="badge-pill ${ts.isOvertime?'badge-timer-ot':c.timer?.goalFrozenAt?'badge-timer-ot':'badge-timer-active'}" data-timer-badge="${c.id}">${ts.isOvertime?'⚠️ -':c.timer?.goalFrozenAt?'⏰ goal! ':'▶ '}${fmtSecs(ts.secsRemaining)}</span>`);
+    if(minPending)badges.push(`<span class="badge-pill" style="background:rgba(96,165,250,.35);color:#BFDBFE;animation:pulse 2s infinite">🔑 min done — tap!</span>`);
     if(ws.cleanDays>0&&!ts?.isOvertime)badges.push(`<span class="badge-pill badge-steward">🌿 ${ws.cleanDays}d</span>`);
     const bal=checkDailyBalance(c.id);
     if(bal.configured){
@@ -5391,59 +5401,46 @@ function rRecWarningModal(){
 function rSchoolMinimumModal(){
   if(!pendingSchoolMinimum)return'';
   if(view!=='child'||childId!==pendingSchoolMinimum.cid)return'';
-  const{cid}=pendingSchoolMinimum;
+  const cid=pendingSchoolMinimum.cid;
   const c=child(cid);if(!c)return'';
-  const sts=getSchoolTimerState(cid);
   const minDay=c.schoolMinDay||0;
   const dailyGoal=c.schoolDailyGoal||0;
-  const stillNeeded=Math.max(0,dailyGoal-minDay);
+  const todayMins=Math.round(getDailySchoolMins(cid));
+  const stillNeeded=Math.max(0,dailyGoal-todayMins);
   const stillNeededHrs=Math.floor(stillNeeded/60);
   const stillNeededMins=stillNeeded%60;
   const stillNeededLabel=stillNeededHrs>0?`${stillNeededHrs}h ${stillNeededMins}min`:`${stillNeededMins} min`;
-  const pts=c.points||0;
-  const interval=D.settings.schoolPointMins||10;
-  const ptsPerInterval=D.settings.schoolPointAmt||2;
-  function snoozeBonus(mins){return Math.floor(mins/interval)*ptsPerInterval;}
-  const b15=snoozeBonus(15);const b30=snoozeBonus(30);
+  const autoSecs=Math.ceil((pendingSchoolMinimum.autoStopAt-Date.now())/1000);
   return`<div class="bottom-sheet-overlay">
     <div class="bottom-sheet" style="text-align:center">
       <div style="font-size:3rem;margin-bottom:8px">🔑</div>
       <h3 style="margin-bottom:4px">Minimum school done, ${c.name}!</h3>
-      <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px">
-        You've done your <strong style="color:var(--text)">${minDay} min</strong> minimum.<br>
-        Recreation is now unlocked 🎮
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px;line-height:1.6">
+        You've completed your <strong style="color:var(--text)">${minDay} min</strong> minimum.<br>
+        Your session will be sent to a parent for approval.
       </p>
-      ${dailyGoal>minDay?`<div style="background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.25);border-radius:10px;padding:8px 12px;margin-bottom:14px;font-size:.82rem">
-        📚 <strong style="color:#60A5FA">${stillNeededLabel} still needed</strong> to reach your full daily goal of ${dailyGoal} min
+      ${dailyGoal>minDay?`<div style="background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.25);border-radius:10px;padding:9px 12px;margin-bottom:14px;font-size:.82rem;text-align:left">
+        <div style="font-weight:800;color:#60A5FA;margin-bottom:3px">📚 Daily goal reminder</div>
+        <div style="color:var(--muted)"><strong style="color:var(--text)">${stillNeededLabel}</strong> still left toward your ${dailyGoal} min daily goal</div>
+        <div style="font-size:.75rem;color:var(--muted);margin-top:3px">Voluntary — earns extra 🌟 bonus pts!</div>
       </div>`:''}
-      <p style="color:var(--muted);font-size:.82rem;margin-bottom:10px">What would you like to do?</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-        <button class="btn btn-ghost" style="padding:12px 8px" data-a="school-minimum-continue" data-mins="15" data-cid="${cid}">
-          <div style="font-size:1.1rem">📚</div>
-          <div style="font-size:.82rem;font-weight:800">+15 min school</div>
-          <div style="font-size:.72rem;color:var(--gold)">${b15>0?'+'+b15+' 🌟':'keep going'}</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+        <button class="btn btn-primary" style="padding:13px" data-a="school-minimum-continue" data-cid="${cid}">
+          <div style="font-weight:900">📚 Log & continue school</div>
+          <div style="font-size:.75rem;opacity:.85">Submit ${minDay} min now — start a new timer for more</div>
         </button>
-        <button class="btn btn-ghost" style="padding:12px 8px" data-a="school-minimum-continue" data-mins="30" data-cid="${cid}">
-          <div style="font-size:1.1rem">📚</div>
-          <div style="font-size:.82rem;font-weight:800">+30 min school</div>
-          <div style="font-size:.72rem;color:var(--gold)">${b30>0?'+'+b30+' 🌟':'keep going'}</div>
+        <button class="btn btn-success" style="padding:13px" data-a="school-minimum-stop" data-cid="${cid}">
+          <div style="font-weight:900">✅ Log & stop for now</div>
+          <div style="font-size:.75rem;opacity:.85">Submit ${minDay} min — take a break or buy rec time</div>
         </button>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;background:var(--card2);border-radius:12px;padding:10px 12px;margin-bottom:10px">
-        <div style="font-size:.82rem;font-weight:700;color:var(--muted);white-space:nowrap">Custom:</div>
-        <input type="number" class="form-input" id="school-min-custom" placeholder="mins" min="1" max="300"
-          style="flex:1;text-align:center;padding:6px;font-size:.9rem;font-weight:800">
-        <button class="btn btn-primary" style="padding:7px 12px;font-size:.8rem" data-a="school-minimum-continue" data-mins="0" data-cid="${cid}">▶</button>
-      </div>
-      <button class="btn btn-success btn-full" style="padding:12px;margin-bottom:8px" data-a="school-minimum-stop" data-cid="${cid}">
-        🎮 Take a break — stop school timer
-      </button>
       <div style="font-size:.72rem;color:var(--muted)">
-        Auto-stopping in <span id="school-min-countdown">120</span>s
+        Auto-logging in <span id="school-min-countdown">${Math.max(0,autoSecs)}</span>s
       </div>
     </div>
   </div>`;
 }
+
 function rSchoolConfirmModal(){
   if(!pendingSchoolConfirm)return'';
   const{cid,extraMins,extraSecs}=pendingSchoolConfirm;
@@ -6454,27 +6451,36 @@ document.addEventListener('click',e=>{
     clearRecStrikes(cid);
   }
   else if(a==='school-minimum-continue'){
+    // Log the minimum session to parent, then start a fresh timer for remaining daily goal
     const cid=el.dataset.cid;const c=child(cid);if(!c||!c.timer)return;
-    const customEl=document.getElementById('school-min-custom');
-    const mins=customEl&&parseInt(customEl.value)>0?parseInt(customEl.value):parseInt(el.dataset.mins)||15;
+    // Unfreeze popup time so elapsed is correct
     if(c.timer.popupPausedAt){
       const fm=Date.now()-c.timer.popupPausedAt;
       c.timer.startedAt+=fm;
       delete c.timer.popupPausedAt;
     }
     delete c.timer.minimumPendingResponse;
-    c.timer.snoozeUntil=Date.now()+(mins*60*1000);
     if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
     pendingSchoolMinimum=null;
-    save();toast('📚 Continuing school for '+mins+' min — great dedication!');render();
+    // Stop current session — logs minimum mins to parent for approval
+    stopSchoolSession(cid);
+    // After stop, start a fresh timer for remaining daily goal (voluntary bonus time)
+    // Small delay to let stopSchoolSession complete
+    setTimeout(()=>{
+      startSessionWithType(cid,'school');
+      toast('📚 Minimum logged! New timer started for additional school time 🌟');
+      render();
+    },200);
   }
   else if(a==='school-minimum-stop'){
+    // Log the minimum session to parent and stop — child can take a break
     const cid=el.dataset.cid;const c=child(cid);
     if(c?.timer?.popupPausedAt){const fm=Date.now()-c.timer.popupPausedAt;c.timer.startedAt+=fm;delete c.timer.popupPausedAt;}
     if(c?.timer)delete c.timer.minimumPendingResponse;
     if(chimeInterval){clearInterval(chimeInterval);chimeInterval=null;}
     pendingSchoolMinimum=null;
     stopSchoolSession(cid);
+    toast('✅ Session logged for parent approval — recreation is now unlocked 🎮');
   }
   else if(a==='school-confirm-yes'){
     // Yes — log full session including extra time
